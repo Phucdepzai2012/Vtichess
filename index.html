@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>Trợ Lý Gợi Ý Nước Đi Cờ Vua</title>
+    <!-- Nhúng CSS của bàn cờ -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.css">
+    <style>
+        body { font-family: Arial, sans-serif; text-align: center; background-color: #f4f4f9; padding: 20px; }
+        .container { max-width: 600px; margin: 0 auto; }
+        #my-board { width: 400px; margin: 20px auto; }
+        .controls { margin-bottom: 20px; }
+        button, select { padding: 10px 20px; font-size: 16px; cursor: pointer; border-radius: 5px; border: 1px solid #ccc; }
+        button { background-color: #007bff; color: white; border: none; }
+        button:hover { background-color: #0056b3; }
+        #suggestion { margin-top: 15px; font-size: 18px; font-weight: bold; color: #28a745; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>🤖 Trợ Lý Cờ Vua Thiên Tài</h2>
+    
+    <div class="controls">
+        <label for="color-select">Chọn quân của bạn: </label>
+        <select id="color-select">
+            <option value="white">Trắng</option>
+            <option value="black">Đen</option>
+        </select>
+        <button id="hint-btn">Gợi Ý Nước Đi</button>
+        <button id="reset-btn" style="background-color: #6c757d;">Chơi lại</button>
+    </div>
+
+    <!-- Nơi hiển thị bàn cờ -->
+    <div id="my-board"></div>
+    
+    <!-- Nơi hiển thị kết quả gợi ý -->
+    <div id="suggestion">Nước đi tốt nhất sẽ hiện ở đây!</div>
+</div>
+
+<!-- Nhúng các thư viện cần thiết -->
+<script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.js"></script>
+
+<script>
+    let board = null;
+    let game = new Chess();
+    let myColor = 'white';
+
+    // Khởi tạo bàn cờ
+    function initBoard() {
+        const config = {
+            draggable: true,
+            position: 'start',
+            orientation: myColor,
+            onDragStart: onDragStart,
+            onDrop: onDrop,
+            onSnapEnd: onSnapEnd
+        };
+        board = Chessboard('my-board', config);
+    }
+
+    // Không cho phép đi quân nếu game kết thúc
+    function onDragStart (source, piece, position, orientation) {
+        if (game.game_over()) return false;
+    }
+
+    // Cập nhật trạng thái bàn cờ khi người chơi thả quân cờ xuống
+    function onDrop (source, target) {
+        let move = game.move({
+            from: source,
+            to: target,
+            promotion: 'q' // Mặc định phong Hậu nếu tốt xuống đáy
+        });
+
+        // Nếu nước đi không hợp lệ, trả quân cờ về vị trí cũ
+        if (move === null) return 'snapback';
+    }
+
+    // Đồng bộ lại bàn cờ sau khi kéo thả xong
+    function onSnapEnd () {
+        board.position(game.fen());
+    }
+
+    // Xử lý sự kiện đổi bên (Trắng/Đen)
+    $('#color-select').change(function() {
+        myColor = $(this).val();
+        board.orientation(myColor);
+    });
+
+    // Xử lý nút Reset
+    $('#reset-btn').click(function() {
+        game.reset();
+        board.start();
+        $('#suggestion').text('Nước đi tốt nhất sẽ hiện ở đây!');
+    });
+
+    // 🤖 XỬ LÝ NÚT GỢI Ý (Gọi API Stockfish online để tính toán)
+    $('#hint-btn').click(function() {
+        let fen = game.fen(); // Lấy thế trận hiện tại dưới dạng chuỗi FEN
+        $('#suggestion').text('Đang suy nghĩ...');
+
+        // Gọi API Stockfish miễn phí để tìm nước đi (Độ sâu tính toán depth=10 cho nhanh)
+        $.getJSON(`https://stockfish.online/api/s/v2.php?fen=${encodeURIComponent(fen)}&depth=10`, function(data) {
+            if (data && data.success && data.bestmove) {
+                // Định dạng trả về thường là dạng "e2e4" hoặc "bestmove e2e4 ponder..."
+                let bestMove = data.bestmove.split(' ')[1] || data.bestmove;
+                
+                // Cắt chuỗi để hiển thị cho người dùng dễ nhìn (Ví dụ: từ e2 đến e4)
+                let from = bestMove.substring(0, 2);
+                let to = bestMove.substring(2, 4);
+                
+                $('#suggestion').text(`💡 Thiên tài khuyên bạn nên đi: Từ ${from.toUpperCase()} đến ${to.toUpperCase()}`);
+            } else {
+                $('#suggestion').text('Không tìm thấy nước đi phù hợp hoặc lỗi kết nối.');
+            }
+        }).fail(function() {
+            $('#suggestion').text('Lỗi kết nối đến Engine phân tích!');
+        });
+    });
+
+    // Chạy khởi tạo ban đầu
+    initBoard();
+</script>
+</body>
+</html>
+
