@@ -1,268 +1,1608 @@
 <!DOCTYPE html>
-<html lang="vi">
+<html lang="vi" class="dark">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Trợ Lý Cờ Vua Mobile</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.css">
-    <style>
-        /* Tối ưu hóa hiển thị trên điện thoại, chặn cuộn trang lung tung khi chạm */
-        body { 
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
-            text-align: center; 
-            background-color: #f1f2f6; 
-            padding: 10px;
-            margin: 0;
-            -webkit-user-select: none; /* Chặn bôi đen chữ trên điện thoại */
-            user-select: none;
-        }
-        .container { 
-            width: 100%;
-            max-width: 450px; 
-            margin: 10px auto; 
-            background: white;
-            padding: 15px;
-            border-radius: 16px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-            box-sizing: border-box;
-        }
-        h2 {
-            color: #2c3e50;
-            margin-top: 5px;
-            margin-bottom: 15px;
-            font-size: 20px;
-        }
-        /* Bàn cờ tự động co giãn theo chiều rộng màn hình điện thoại */
-        #my-board { 
-            width: 100%; 
-            max-width: 380px;
-            margin: 15px auto; 
-            touch-action: none; /* Chặn trình duyệt kéo cuộn màn hình khi chạm vào bàn cờ */
-        }
-        /* Hiệu ứng ô cờ được chọn nổi bật - Kiểu Chess.com chuẩn Mobile */
-        .highlight-square {
-            box-shadow: inset 0 0 0 4px #f1c40f !important;
-            background-color: rgba(241, 196, 15, 0.4) !important;
-        }
-        .controls { 
-            margin-bottom: 15px; 
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-            align-items: center;
-        }
-        .row {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            justify-content: center;
-            width: 100%;
-        }
-        label {
-            font-weight: bold;
-            color: #34495e;
-            font-size: 14px;
-        }
-        select { 
-            padding: 8px 10px; 
-            font-size: 14px; 
-            border-radius: 8px; 
-            border: 1px solid #ced4da;
-            background-color: #fff;
-        }
-        button { 
-            padding: 12px 15px; 
-            font-size: 14px; 
-            font-weight: bold;
-            cursor: pointer; 
-            border-radius: 8px; 
-            border: none;
-            flex: 1;
-            max-width: 180px;
-            -webkit-tap-highlight-color: transparent; /* Xóa bóng mờ khi chạm nút trên Safari */
-        }
-        #hint-btn { 
-            background-color: #2ecc71; 
-            color: white; 
-        }
-        #reset-btn { 
-            background-color: #95a5a6; 
-            color: white; 
-        }
-        #suggestion { 
-            margin-top: 15px; 
-            padding: 12px;
-            font-size: 15px; 
-            font-weight: bold; 
-            color: #2980b9; 
-            background-color: #e8f4f8;
-            border-radius: 8px;
-            border-left: 5px solid #2980b9;
-            min-height: 22px;
-        }
-    </style>
-</head>
-<body>
-
-<div class="container">
-    <h2>🤖 Trợ Lý Cờ Vua Thiên Tài (Mobile)</h2>
-    
-    <div class="controls">
-        <div class="row">
-            <label for="color-select">Quân của bạn: </label>
-            <select id="color-select">
-                <option value="white">Trắng (Đi trước)</option>
-                <option value="black">Đen (Đi sau)</option>
-            </select>
-        </div>
-        
-        <div class="row">
-            <button id="hint-btn">🎯 GỢI Ý NƯỚC ĐI</button>
-            <button id="reset-btn">🔄 CHƠI LẠI</button>
-        </div>
-    </div>
-
-    <div id="my-board"></div>
-    
-    <div id="suggestion">Chạm quân cờ và chọn ô để di chuyển!</div>
-</div>
-
-<script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.js"></script>
-
-<script>
-    let board = null;
-    let game = new Chess();
-    let myColor = 'white';
-    
-    // Biến lưu ô cờ đang được chọn
-    let sourceSquare = null;
-
-    function initBoard() {
-        const config = {
-            draggable: false, // 🛑 TẮT HOÀN TOÀN tính năng kéo thả để tránh lỗi trên điện thoại
-            position: 'start',
-            orientation: myColor,
-            pieceTheme: 'https://chessboardjs.com/img/chesspieces/wikipedia/{piece}.png'
-        };
-        board = Chessboard('my-board', config);
-
-        // Kích hoạt tính năng Chạm để di chuyển tối ưu cho điện thoại
-        setupMobileClickMove();
-    }
-
-    // --- LOGIC CHẠM ĐỂ DI CHUYỂN (TỐI ƯU MOBILE) ---
-    function setupMobileClickMove() {
-        // Sử dụng sự kiện click (thư viện chessboard-js tự động chuẩn hóa touch trên mobile thành click)
-        $('#my-board').on('click', '.square-55d63', function() {
-            if (game.game_over()) return;
-
-            let square = $(this).attr('data-square');
-            let piece = game.get(square);
-
-            // BƯỚC 1: Nếu chưa chọn quân cờ nào trước đó
-            if (sourceSquare === null) {
-                // Kiểm tra xem ô vừa chạm có quân cờ không và quân đó phải đúng lượt đi hiện tại
-                if (piece && piece.color === game.turn()) {
-                    sourceSquare = square;
-                    addHighlight(square);
-                }
-            } 
-            // BƯỚC 2: Nếu đã chọn 1 quân cờ từ trước và giờ chạm vào ô tiếp theo
-            else {
-                // Thử thực hiện nước đi bằng thư viện luật cờ chess.js
-                let move = game.move({
-                    from: sourceSquare,
-                    to: square,
-                    promotion: 'q' // Tự động phong Hậu nếu tốt đi đến cuối hàng
-                });
-
-                // Nếu nước đi HỢP LỆ
-                if (move !== null) {
-                    board.position(game.fen()); // Cập nhật lại hình ảnh bàn cờ
-                    removeHighlight();
-                    sourceSquare = null; // Reset trạng thái
-                } 
-                // Nếu nước đi KHÔNG HỢP LỆ (Bấm sai ô)
-                else {
-                    // Nếu ô chạm tiếp theo lại là 1 quân cờ khác CÙNG MÀU -> Đổi lựa chọn sang quân mới luôn
-                    if (piece && piece.color === game.turn()) {
-                        removeHighlight();
-                        sourceSquare = square;
-                        addHighlight(square);
-                    } else {
-                        // Chạm ra ô trống sai luật hoặc quân địch không ăn được -> Hủy chọn quân cũ
-                        removeHighlight();
-                        sourceSquare = null;
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Chess Lab Pro static GitHub Pages chess trainer with Stockfish analysis.">
+    <title>Chess Lab Pro - Stockfish Online API (GitHub Pages)</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        chess: {
+                            bg: '#161512',
+                            card: '#262421',
+                            panel: '#21201d',
+                            hover: '#312e2b',
+                            active: '#3c3935',
+                            border: '#383531',
+                            green: '#81b64c',
+                            greenHover: '#a3d168',
+                            greenDark: '#457524',
+                            textLight: '#ffffff',
+                            textMuted: '#989795',
+                            boardLight: '#ebecd0',
+                            boardDark: '#739552',
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Nunito', 'Segoe UI', 'system-ui', 'sans-serif'],
                     }
                 }
             }
-        });
-    }
+        }
+    </script>
+    <!-- Google Font: Nunito (Official Chess.com typography style) -->
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <!-- chess.js for complete rule validation -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
 
-    // Tô màu viền vàng xung quanh ô được chạm
-    function addHighlight(square) {
-        $('#my-board .square-' + square).addClass('highlight-square');
-    }
-
-    // Xóa màu viền vàng
-    function removeHighlight() {
-        $('#my-board .square-55d63').removeClass('highlight-square');
-    }
-    // -----------------------------------------------
-
-    // Đổi góc nhìn bàn cờ (Trắng/Đen)
-    $('#color-select').change(function() {
-        myColor = $(this).val();
-        board.orientation(myColor);
-        removeHighlight();
-        sourceSquare = null;
-    });
-
-    // Làm mới trận đấu
-    $('#reset-btn').click(function() {
-        game.reset();
-        board.start();
-        removeHighlight();
-        sourceSquare = null;
-        $('#suggestion').text('Chạm quân cờ và chọn ô để di chuyển!');
-    });
-
-    // Gọi AI Stockfish phân tích thế trận hiện tại
-    $('#hint-btn').click(function() {
-        if (game.game_over()) {
-            $('#suggestion').text('Trận đấu đã kết thúc!');
-            return;
+    <style>
+        body {
+            font-family: 'Nunito', sans-serif;
+            background-color: #161512;
+            color: #bab4ab;
+            user-select: none;
+            overflow-x: hidden;
         }
 
-        let fen = game.fen();
-        $('#suggestion').text('🤖 Thiên tài đang tính toán...');
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #161512; }
+        ::-webkit-scrollbar-thumb { background: #383531; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #524f4a; }
 
-        $.getJSON(`https://stockfish.online/api/s/v2.php?fen=${encodeURIComponent(fen)}&depth=12`, function(data) {
-            if (data && data.success && data.bestmove) {
-                let bestMove = data.bestmove.split(' ')[1] || data.bestmove;
-                
-                if (bestMove === '(none)') {
-                    $('#suggestion').text('🏁 Không còn nước đi nào hợp lệ.');
-                    return;
-                }
+        /* Board Themes - Clean Tiles without glow */
+        .theme-green .sq-light { background-color: #ebecd0; color: #739552; }
+        .theme-green .sq-dark { background-color: #739552; color: #ebecd0; }
 
-                let from = bestMove.substring(0, 2).toUpperCase();
-                let to = bestMove.substring(2, 4).toUpperCase();
-                
-                $('#suggestion').html(`💡 Nước đi tốt nhất: Chạm ô <b style="color:#e74c3c">${from}</b> đi sang ô <b style="color:#27ae60">${to}</b>`);
-            } else {
-                $('#suggestion').text('❌ Không tìm thấy nước đi phù hợp.');
+        .theme-wood .sq-light { background-color: #f0d9b5; color: #b58863; }
+        .theme-wood .sq-dark { background-color: #b58863; color: #f0d9b5; }
+
+        .theme-glass .sq-light { background-color: #e2e8f0; color: #64748b; }
+        .theme-glass .sq-dark { background-color: #475569; color: #cbd5e1; }
+
+        .theme-dark .sq-light { background-color: #3b3b3b; color: #222222; }
+        .theme-dark .sq-dark { background-color: #222222; color: #3b3b3b; }
+
+        /* Authentic Chess.com Highlights */
+        .hl-selected { background-color: rgba(255, 255, 51, 0.5) !important; }
+        .hl-lastmove { background-color: rgba(255, 255, 51, 0.4) !important; }
+        
+        /* Authentic Chess.com Move Hints: Soft translucent dot & capture ring */
+        .hl-dot::after {
+            content: '';
+            position: absolute;
+            width: 26%;
+            height: 26%;
+            background-color: rgba(0, 0, 0, 0.14);
+            border-radius: 50%;
+            pointer-events: none;
+        }
+        .hl-capture::after {
+            content: '';
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            border: 6px solid rgba(0, 0, 0, 0.15);
+            border-radius: 50%;
+            box-sizing: border-box;
+            pointer-events: none;
+        }
+
+        /* Chess Piece SVGs - Clean, no filters, glow or drop shadows */
+        .piece-img {
+            width: 100%;
+            height: 100%;
+            background-size: contain;
+            background-repeat: no-repeat;
+            background-position: center;
+            cursor: grab;
+            transition: transform 0.05s ease-in-out;
+            filter: none !important; /* Strictly no glowing aura or drop-shadow */
+        }
+        .piece-img:active { cursor: grabbing; transform: scale(1.05); }
+
+        /* Move Classification Badge Overlay on Squares */
+        .badge-brilliant { background-color: #1baca6; color: #fff; }
+        .badge-great { background-color: #5c8bb0; color: #fff; }
+        .badge-best { background-color: #96bc4b; color: #fff; }
+        .badge-good { background-color: #96bc4b; color: #fff; }
+        .badge-inaccuracy { background-color: #f3c23e; color: #000; }
+        .badge-mistake { background-color: #e58f2a; color: #fff; }
+        .badge-blunder { background-color: #fa412d; color: #fff; }
+        .badge-miss { background-color: #b33928; color: #fff; }
+
+        .badge-icon-overlay {
+            position: absolute;
+            top: -4px;
+            right: -4px;
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 11px;
+            font-weight: 900;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.4);
+            z-index: 20;
+            pointer-events: none;
+        }
+
+        .engine-status { cursor:pointer; user-select:none; display:inline-flex; align-items:center; gap:7px; max-width:230px; padding:5px 9px; border:1px solid #383531; border-radius:999px; background:#21201d; color:#bab4ab; font-size:10px; font-weight:800; white-space:nowrap; }
+        .engine-status-dot { width:7px; height:7px; display:inline-block; border-radius:50%; background:#e8b94f; flex:0 0 auto; }
+        .engine-status.ready .engine-status-dot { background:#81b64c; box-shadow:0 0 0 3px rgba(129,182,76,.12); }
+        .engine-status.error .engine-status-dot { background:#fa412d; }
+        .engine-lines { display:flex; flex-direction:column; gap:6px; margin-top:9px; }
+        .engine-line-row { display:grid; grid-template-columns:22px 48px 1fr; gap:7px; align-items:start; padding:7px 8px; border-radius:8px; background:#1b1a18; border:1px solid #383531; font-size:11px; }
+        .engine-line-row .line-rank { color:#81b64c; font-weight:900; }
+        .engine-line-row .line-score { color:#f0d9b5; font-weight:900; white-space:nowrap; }
+        .engine-line-row .line-pv { color:#d6d3d1; line-height:1.45; overflow-wrap:anywhere; }
+        .eval-graph-wrap { background:#21201d; border:1px solid #383531; border-radius:12px; padding:10px; }
+        #review-eval-graph { width:100%; height:132px; display:block; }
+        .review-stat { display:inline-flex; align-items:center; gap:4px; padding:4px 7px; border-radius:6px; background:#1b1a18; font-size:10px; font-weight:900; }
+        .analysis-square-selected { box-shadow: inset 0 0 0 4px rgba(255,255,51,.75); }
+        .analysis-square-legal::after { content:''; position:absolute; width:25%; height:25%; border-radius:50%; background:rgba(0,0,0,.20); pointer-events:none; }
+        .analysis-square-capture::after { content:''; position:absolute; inset:0; border:5px solid rgba(0,0,0,.20); border-radius:50%; box-sizing:border-box; pointer-events:none; }
+        .piece-img { object-fit:contain; display:block; max-width:100%; max-height:100%; }
+
+        /* Stable chessboard geometry: exactly 8 equal columns AND rows.
+           CSS aspect-ratio stops flex/grid parents from stretching the board. */
+        .board-frame { flex: 0 0 auto; min-width: 0; width: max-content; }
+        .chessboard-grid {
+            display: grid;
+            grid-template-columns: repeat(8, minmax(0, 1fr));
+            grid-template-rows: repeat(8, minmax(0, 1fr));
+            flex: 0 0 auto;
+            box-sizing: border-box;
+            aspect-ratio: 1 / 1;
+            height: auto;
+            max-width: 100%;
+            min-width: 0;
+            min-height: 0;
+            overflow: hidden;
+        }
+        .chessboard-play { width: min(560px, calc(100vw - 72px)); }
+        .chessboard-review { width: min(380px, calc(100vw - 72px)); }
+        .chessboard-analysis { width: min(540px, calc(100vw - 80px)); }
+        .chessboard-grid > div { min-width: 0; min-height: 0; width: 100%; height: 100%; aspect-ratio: 1 / 1; overflow: hidden; }
+        /* Coordinates on every board: rank labels 1-8, file labels a-h. */
+        .chessboard-grid > div[data-rank-label]::before,
+        .chessboard-grid > div[data-file-label]::after {
+            position: absolute; z-index: 5; pointer-events: none;
+            font-family: 'Nunito', sans-serif; font-size: clamp(8px, 1.2vw, 12px);
+            line-height: 1; font-weight: 900; opacity: .94;
+            text-shadow: 0 1px 1px rgba(0,0,0,.12);
+        }
+        .chessboard-grid > div[data-rank-label]::before { content: attr(data-rank-label); top: 3px; left: 4px; }
+        .chessboard-grid > div[data-file-label]::after { content: attr(data-file-label); right: 4px; bottom: 3px; }
+        .eval-bar-stack { width: 16px; flex: 0 0 16px; align-self: stretch; min-height: 0; }
+        .eval-bar-stack > div { flex-shrink: 0; }
+        #chessboard, #review-chessboard, #analysis-chessboard { touch-action: manipulation; }
+        @media (max-width: 639px) {
+            .chessboard-play { width: min(560px, calc(100vw - 72px)); }
+            .chessboard-analysis { width: min(540px, calc(100vw - 80px)); }
+            .eval-bar-stack { width: 12px; flex-basis: 12px; }
+        }
+        @media (max-width: 640px) { .engine-status { max-width:116px; overflow:hidden; } #engine-status-text { overflow:hidden; text-overflow:ellipsis; } }
+
+        /* Chess.com-inspired button treatment */
+        .btn-chess-green {
+            background-color: #81b64c;
+            box-shadow: 0 4px 0 #457524;
+            transition: all 0.1s ease;
+        }
+        .btn-chess-green:hover {
+            background-color: #a3d168;
+        }
+        .btn-chess-green:active {
+            transform: translateY(2px);
+            box-shadow: 0 2px 0 #457524;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col lg:flex-row bg-chess-bg text-chess-textMuted">
+
+    <!-- SIDEBAR NAVIGATION -->
+    <aside class="w-full lg:w-64 bg-chess-card border-r border-chess-border flex lg:flex-col justify-between p-3 lg:p-4 z-30 shrink-0 shadow-xl">
+        <div class="flex lg:flex-col items-center lg:items-stretch gap-4 w-full">
+            <!-- Chess.com Logo -->
+            <div class="flex items-center gap-3 px-2 py-1 cursor-pointer" onclick="switchTab('play')">
+                <div class="w-10 h-10 rounded-lg bg-chess-green flex items-center justify-center text-white text-2xl shadow-lg font-black">
+                    <i class="fa-solid fa-chess-knight"></i>
+                </div>
+                <div class="hidden lg:block">
+                    <h1 class="font-extrabold text-chess-textLight text-xl leading-none tracking-wide">Chess Lab</h1>
+                    <span class="text-xs text-chess-green font-bold tracking-wider">STOCKFISH ANALYZER</span>
+                </div>
+            </div>
+
+            <!-- Navigation Tabs -->
+            <nav class="flex lg:flex-col gap-1.5 w-full justify-around lg:justify-start">
+                <button onclick="switchTab('play')" id="nav-play" class="nav-btn flex items-center gap-3 px-3 py-3 rounded-xl text-chess-textLight bg-chess-hover font-bold transition text-left">
+                    <i class="fa-solid fa-robot text-chess-green w-5 text-center text-lg"></i>
+                    <span class="hidden lg:inline text-sm">Đấu với Bot (1-10000)</span>
+                </button>
+                <button onclick="switchTab('review')" id="nav-review" class="nav-btn flex items-center gap-3 px-3 py-3 rounded-xl text-chess-textMuted hover:bg-chess-hover hover:text-chess-textLight font-bold transition text-left">
+                    <i class="fa-solid fa-magnifying-glass-chart text-blue-400 w-5 text-center text-lg"></i>
+                    <span class="hidden lg:inline text-sm">Tra cứu Chess.com</span>
+                </button>
+                <button onclick="switchTab('analysis')" id="nav-analysis" class="nav-btn flex items-center gap-3 px-3 py-3 rounded-xl text-chess-textMuted hover:bg-chess-hover hover:text-chess-textLight font-bold transition text-left">
+                    <i class="fa-solid fa-microchip text-amber-400 w-5 text-center text-lg"></i>
+                    <span class="hidden lg:inline text-sm">Bàn phân tích Stockfish</span>
+                </button>
+                <button onclick="switchTab('settings')" id="nav-settings" class="nav-btn flex items-center gap-3 px-3 py-3 rounded-xl text-chess-textMuted hover:bg-chess-hover hover:text-chess-textLight font-bold transition text-left">
+                    <i class="fa-solid fa-sliders text-purple-400 w-5 text-center text-lg"></i>
+                    <span class="hidden lg:inline text-sm">Cài đặt & Giao diện</span>
+                </button>
+            </nav>
+        </div>
+
+        <!-- User Profile Card -->
+        <div class="hidden lg:flex items-center gap-3 p-3 bg-chess-panel rounded-xl border border-chess-border mt-auto">
+            <div class="w-10 h-10 rounded-lg bg-chess-green flex items-center justify-center text-white font-extrabold text-lg shadow">
+                <i class="fa-solid fa-user-astronaut"></i>
+            </div>
+            <div class="overflow-hidden">
+                <p class="text-sm font-extrabold text-chess-textLight truncate" id="user-display-name">Khách Hàng Đầu</p>
+                <p class="text-xs text-chess-green font-bold">Elo: 1500 • Diamond Pro</p>
+            </div>
+        </div>
+    </aside>
+
+    <!-- MAIN APP CONTENT AREA -->
+    <main class="flex-1 flex flex-col h-screen overflow-hidden">
+        
+        <!-- TOP NAVBAR HEADER -->
+        <header class="h-14 border-b border-chess-border bg-chess-card px-4 lg:px-6 flex items-center justify-between shrink-0">
+            <div class="flex items-center gap-3 min-w-0">
+                <span id="current-mode-title" class="text-base font-extrabold text-chess-textLight flex items-center gap-2">
+                    <i class="fa-solid fa-robot text-chess-green"></i> Đấu Cờ Với Stockfish Bot
+                </span>
+                <span id="engine-status" class="engine-status" role="button" tabindex="0" onclick="retryStockfish()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();retryStockfish();}" title="Nhấn để kiểm tra hoặc thử lại Stockfish Online API"><span class="engine-status-dot"></span><span id="engine-status-text">Stockfish Online API · chưa kiểm tra</span></span>
+            </div>
+            <div class="flex items-center gap-2">
+                <button onclick="toggleAudio()" id="sound-btn" class="px-3 py-1.5 rounded-lg bg-chess-panel hover:bg-chess-hover text-chess-textLight text-xs font-bold transition flex items-center gap-2 border border-chess-border">
+                    <i class="fa-solid fa-volume-high text-chess-green"></i> <span class="hidden sm:inline">Âm thanh: Bật</span>
+                </button>
+                <button onclick="startNewGame()" class="px-4 py-1.5 rounded-lg btn-chess-green text-white font-black text-xs transition flex items-center gap-1.5">
+                    <i class="fa-solid fa-plus"></i> Ván Mới
+                </button>
+            </div>
+        </header>
+
+        <!-- VIEWS WRAPPER -->
+        <div class="flex-1 overflow-y-auto relative p-2 lg:p-6">
+
+            <!-- ================= TAB 1: PLAY VS BOT ================= -->
+            <section id="view-play" class="view-section max-w-7xl mx-auto flex flex-col 2xl:flex-row gap-6 items-center 2xl:items-start justify-center">
+                <!-- Left: Evaluation Bar & Chessboard -->
+                <div class="flex gap-2.5 items-stretch justify-center board-play-layout">
+                    <!-- Real-time Evaluation Bar -->
+                    <div class="eval-bar-stack bg-zinc-900 rounded-md overflow-hidden flex flex-col border border-chess-border relative shadow-inner">
+                        <div id="eval-bar-black" class="bg-zinc-800 w-full transition-all duration-300" style="height: 50%;"></div>
+                        <div id="eval-bar-white" class="bg-zinc-100 w-full transition-all duration-300" style="height: 50%;"></div>
+                        <span id="eval-score-text" class="absolute inset-x-0 top-1/2 -translate-y-1/2 text-[10px] font-black text-center text-black bg-white/90 py-0.5 shadow">0.0</span>
+                    </div>
+
+                    <!-- Main Chessboard Component -->
+                    <div class="board-frame relative shadow-2xl rounded-lg overflow-hidden border-4 border-chess-card">
+                        <div id="chessboard" class="chessboard-grid chessboard-play select-none theme-green"></div>
+                        
+                        <!-- Promotion Modal -->
+                        <div id="promotion-modal" class="hidden absolute inset-0 bg-black/75 backdrop-blur-sm flex items-center justify-center z-50">
+                            <div class="bg-chess-card p-4 rounded-2xl border border-chess-border flex gap-3 shadow-2xl">
+                                <button onclick="selectPromotion('q')" class="w-16 h-16 rounded-xl bg-chess-panel hover:bg-chess-hover flex items-center justify-center text-3xl text-chess-textLight transition border border-chess-border"><i class="fa-solid fa-chess-queen"></i></button>
+                                <button onclick="selectPromotion('r')" class="w-16 h-16 rounded-xl bg-chess-panel hover:bg-chess-hover flex items-center justify-center text-3xl text-chess-textLight transition border border-chess-border"><i class="fa-solid fa-chess-rook"></i></button>
+                                <button onclick="selectPromotion('b')" class="w-16 h-16 rounded-xl bg-chess-panel hover:bg-chess-hover flex items-center justify-center text-3xl text-chess-textLight transition border border-chess-border"><i class="fa-solid fa-chess-bishop"></i></button>
+                                <button onclick="selectPromotion('n')" class="w-16 h-16 rounded-xl bg-chess-panel hover:bg-chess-hover flex items-center justify-center text-3xl text-chess-textLight transition border border-chess-border"><i class="fa-solid fa-chess-knight"></i></button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right: Controls & Live Textbook Commentary -->
+                <div class="w-full 2xl:w-[420px] flex flex-col gap-3 min-h-[560px] bg-chess-card rounded-2xl border border-chess-border p-4 shadow-2xl">
+                    <!-- Bot Header & Status -->
+                    <div class="flex items-center justify-between pb-3 border-b border-chess-border">
+                        <div class="flex items-center gap-3">
+                            <div class="w-12 h-12 rounded-xl bg-chess-panel border border-chess-border flex items-center justify-center text-2xl text-chess-green shadow">
+                                <i class="fa-solid fa-robot"></i>
+                            </div>
+                            <div>
+                                <h3 id="bot-name-display" class="font-extrabold text-chess-textLight text-base">Stockfish Bot</h3>
+                                <p class="text-xs text-chess-green font-bold" id="bot-elo-badge">Cấp độ: 1500</p>
+                            </div>
+                        </div>
+                        <div id="bot-thinking" class="hidden text-xs text-amber-400 font-bold animate-pulse flex items-center gap-1.5 bg-amber-950/40 px-3 py-1 rounded-lg border border-amber-800/50">
+                            <i class="fa-solid fa-spinner fa-spin"></i> Đang suy nghĩ...
+                        </div>
+                    </div>
+
+                    <!-- Elo Strength Slider -->
+                    <div class="bg-chess-panel p-3 rounded-xl border border-chess-border flex flex-col gap-2">
+                        <div class="flex justify-between items-center text-xs font-bold">
+                            <span class="text-chess-textLight">Cấp độ Bot (1 - 10,000)</span>
+                            <span id="elo-value-label" class="text-chess-green text-sm font-black">1500</span>
+                        </div>
+                        <input type="range" id="bot-elo-slider" min="1" max="10000" value="1500" class="w-full accent-[#81b64c] cursor-pointer" oninput="updateBotElo(this.value)">
+                        <div class="flex justify-between text-[10px] text-chess-textMuted font-bold">
+                            <span>1 (Tập chơi)</span>
+                            <span>1500 (Trung bình)</span>
+                            <span>3000 (Đại kiện tướng)</span>
+                            <span>10000 (Thần thánh)</span>
+                        </div>
+                    </div>
+
+                    <!-- Live Textbook Move Analysis Box -->
+                    <div id="live-textbook-card" class="bg-chess-panel p-3.5 rounded-xl border border-chess-border flex flex-col gap-2 transition-all">
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs font-bold text-chess-textMuted uppercase tracking-wider">Phân Tích Trực Tiếp (Sách Giáo Khoa)</span>
+                            <span id="live-move-badge" class="px-2.5 py-0.5 rounded-full text-xs font-extrabold badge-best">Tốt Nhất ⭐</span>
+                        </div>
+                        <p id="live-textbook-comment" class="text-xs text-chess-textLight font-semibold leading-relaxed">
+                            Bắt đầu ván đấu! Thực hiện nước đi của bạn để nhận phân tích chi tiết.
+                        </p>
+                    </div>
+
+                    <!-- Move History Log -->
+                    <div class="flex-1 bg-chess-panel rounded-xl border border-chess-border overflow-y-auto p-2" id="move-history-container">
+                        <table class="w-full text-xs text-left">
+                            <thead class="text-chess-textMuted border-b border-chess-border sticky top-0 bg-chess-panel font-bold">
+                                <tr>
+                                    <th class="py-1 px-2 w-10">#</th>
+                                    <th class="py-1 px-2">Trắng</th>
+                                    <th class="py-1 px-2">Đen</th>
+                                </tr>
+                            </thead>
+                            <tbody id="move-history-body">
+                                <!-- Moves dynamically added -->
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Bottom Action Controls -->
+                    <div class="grid grid-cols-4 gap-2 pt-1">
+                        <button onclick="undoMove()" class="py-2.5 rounded-xl bg-chess-panel hover:bg-chess-hover text-chess-textLight text-xs font-bold transition border border-chess-border flex items-center justify-center gap-1">
+                            <i class="fa-solid fa-rotate-left"></i> Đi lại
+                        </button>
+                        <button onclick="getHint()" class="py-2.5 rounded-xl bg-chess-panel hover:bg-chess-hover text-amber-400 text-xs font-bold transition border border-chess-border flex items-center justify-center gap-1">
+                            <i class="fa-solid fa-lightbulb"></i> Gợi ý
+                        </button>
+                        <button onclick="flipBoard()" class="py-2.5 rounded-xl bg-chess-panel hover:bg-chess-hover text-chess-textLight text-xs font-bold transition border border-chess-border flex items-center justify-center gap-1">
+                            <i class="fa-solid fa-arrows-rotate"></i> Đổi bên
+                        </button>
+                        <button onclick="resignGame()" class="py-2.5 rounded-xl bg-red-950/40 hover:bg-red-900/60 text-red-400 text-xs font-bold transition border border-red-900/50 flex items-center justify-center gap-1">
+                            <i class="fa-solid fa-flag"></i> Đầu hàng
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ================= TAB 2: CHESS.COM PLAYER LOOKUP ================= -->
+            <section id="view-review" class="view-section hidden max-w-6xl mx-auto flex flex-col gap-6">
+                <!-- Search Banner -->
+                <div class="bg-chess-card p-6 rounded-2xl border border-chess-border shadow-xl flex flex-col md:flex-row items-center justify-between gap-4">
+                    <div>
+                        <h2 class="text-xl font-black text-chess-textLight flex items-center gap-2">
+                            <i class="fa-solid fa-magnifying-glass-chart text-blue-400"></i> Tra Cứu & Phân Tích Ván Đấu Chess.com
+                        </h2>
+                        <p class="text-xs text-chess-textMuted mt-1 font-semibold">
+                            Nhập tên người chơi Chess.com bất kỳ (VD: Hikaru, MagnusCarlsen) để tải ván đấu gần nhất và chạy phân tích AI.
+                        </p>
+                    </div>
+                    <div class="flex items-center gap-2 w-full md:w-auto">
+                        <div class="relative flex-1 md:w-80">
+                            <i class="fa-solid fa-user absolute left-3.5 top-1/2 -translate-y-1/2 text-chess-textMuted"></i>
+                            <input type="text" id="chesscom-username-input" placeholder="Ví dụ: Hikaru, MagnusCarlsen" class="w-full pl-10 pr-4 py-2.5 bg-chess-panel border border-chess-border rounded-xl text-chess-textLight text-sm font-bold focus:outline-none focus:border-chess-green">
+                        </div>
+                        <button onclick="fetchChessComGames()" class="px-5 py-2.5 btn-chess-green text-white font-extrabold rounded-xl text-sm transition shadow shrink-0 flex items-center gap-2">
+                            <i class="fa-solid fa-search"></i> Tải Ván
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Games Grid & Review Display -->
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <!-- Left: Recent Games List -->
+                    <div class="bg-chess-card rounded-2xl border border-chess-border p-4 flex flex-col h-[580px] shadow-xl">
+                        <h3 class="font-extrabold text-chess-textLight text-sm mb-3 flex items-center gap-2 border-b border-chess-border pb-2">
+                            <i class="fa-solid fa-list-check text-chess-green"></i> Danh Sách Ván Đấu
+                        </h3>
+                        <div id="games-list-container" class="flex-1 overflow-y-auto flex flex-col gap-2 pr-1">
+                            <div class="text-center py-20 text-chess-textMuted">
+                                <i class="fa-solid fa-chess text-4xl mb-3 opacity-30"></i>
+                                <p class="text-xs font-bold">Nhập tên người chơi ở trên hoặc nhấn nút bên dưới để xem ván mẫu.</p>
+                                <button onclick="loadDemoGames()" class="mt-3 px-4 py-2 bg-chess-panel hover:bg-chess-hover text-chess-green font-extrabold text-xs rounded-xl border border-chess-border transition">
+                                    Tải Ván Mẫu Kiện Tướng
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Right: Review Workspace Board -->
+                    <div class="lg:col-span-2 bg-chess-card rounded-2xl border border-chess-border p-6 flex flex-col gap-4 shadow-xl justify-between">
+                        <div id="review-placeholder" class="flex flex-col items-center justify-center h-[500px] text-center text-chess-textMuted">
+                            <i class="fa-solid fa-chart-pie text-5xl mb-4 text-chess-green opacity-40"></i>
+                            <h3 class="text-lg font-black text-chess-textLight">Chưa Chọn Ván Đấu</h3>
+                            <p class="text-xs font-semibold max-w-sm mt-1">Chọn một ván đấu từ danh sách bên trái để mở giao diện phân tích từng nước đi.</p>
+                        </div>
+
+                        <!-- Active Game Review Screen -->
+                        <div id="review-active-content" class="hidden flex flex-col gap-4">
+                            <!-- Players Header -->
+                            <div class="flex items-center justify-between bg-chess-panel p-4 rounded-xl border border-chess-border">
+                                <div class="flex items-center gap-4">
+                                    <div>
+                                        <p class="text-[10px] font-bold text-chess-textMuted uppercase">Trắng</p>
+                                        <p id="review-white-player" class="font-extrabold text-chess-textLight text-sm">Player 1</p>
+                                    </div>
+                                    <span class="text-lg font-black text-chess-green">VS</span>
+                                    <div>
+                                        <p class="text-[10px] font-bold text-chess-textMuted uppercase">Đen</p>
+                                        <p id="review-black-player" class="font-extrabold text-chess-textLight text-sm">Player 2</p>
+                                    </div>
+                                </div>
+                                <button onclick="runFullReviewAnalysis()" class="px-4 py-2 btn-chess-green text-white font-extrabold rounded-xl text-xs transition shadow flex items-center gap-2">
+                                    <i class="fa-solid fa-wand-magic-sparkles"></i> Phân Tích Toàn Bộ Ván
+                                </button>
+                            </div>
+
+                            <!-- Review Board & Commentary -->
+                            <div class="flex flex-col md:flex-row gap-6 items-center">
+                                <div class="board-frame relative shadow-2xl rounded-lg overflow-hidden border-2 border-chess-border shrink-0">
+                                    <div id="review-chessboard" class="chessboard-grid chessboard-review select-none theme-green"></div>
+                                </div>
+
+                                <div class="flex-1 flex flex-col gap-3 w-full">
+                                    <div class="bg-chess-panel p-4 rounded-xl border border-chess-border flex flex-col gap-2">
+                                        <div class="flex items-center justify-between">
+                                            <span class="text-xs font-extrabold text-chess-textMuted uppercase">Đánh Giá Nước Đi</span>
+                                            <span id="review-move-badge" class="px-2.5 py-0.5 rounded-full text-xs font-extrabold badge-best">Tốt Nhất ⭐</span>
+                                        </div>
+                                        <p id="review-move-explanation" class="text-xs text-chess-textLight font-semibold leading-relaxed min-h-[60px]">
+                                            Chọn nước đi bên dưới để xem bình luận từ sách giáo khoa.
+                                        </p>
+                                        <div class="flex items-center justify-between pt-2 border-t border-chess-border">
+                                            <div class="flex gap-2">
+                                                <button onclick="reviewStep(-1)" class="px-3 py-1.5 bg-chess-hover hover:bg-chess-active rounded-lg text-chess-textLight text-xs font-bold border border-chess-border"><i class="fa-solid fa-chevron-left"></i> Trước</button>
+                                                <button onclick="reviewStep(1)" class="px-3 py-1.5 bg-chess-hover hover:bg-chess-active rounded-lg text-chess-textLight text-xs font-bold border border-chess-border">Sau <i class="fa-solid fa-chevron-right"></i></button>
+                                            </div>
+                                            <span id="review-move-counter" class="text-xs font-black text-chess-green">Nước 0 / 0</span>
+                                        </div>
+                                    </div>
+
+                                    <!-- Accuracy Scorecards are populated only after engine review -->
+                                    <div class="grid grid-cols-2 gap-3">
+                                        <div class="bg-chess-panel p-3 rounded-xl border border-chess-border text-center">
+                                            <p class="text-[10px] font-bold text-chess-textMuted uppercase">Độ chính xác Trắng (ước tính)</p>
+                                            <p id="white-accuracy-score" class="text-2xl font-black text-chess-green mt-0.5">—</p>
+                                        </div>
+                                        <div class="bg-chess-panel p-3 rounded-xl border border-chess-border text-center">
+                                            <p class="text-[10px] font-bold text-chess-textMuted uppercase">Độ chính xác Đen (ước tính)</p>
+                                            <p id="black-accuracy-score" class="text-2xl font-black text-blue-400 mt-0.5">—</p>
+                                        </div>
+                                    </div>
+                                    <div class="eval-graph-wrap">
+                                        <div class="flex items-center justify-between mb-2 gap-2">
+                                            <span class="text-[10px] uppercase tracking-wider font-extrabold text-chess-textMuted">Biểu đồ lợi thế · Trắng (+) / Đen (−)</span>
+                                            <span id="review-analysis-progress" class="text-[10px] text-chess-green font-black">Chưa phân tích</span>
+                                        </div>
+                                        <canvas id="review-eval-graph" width="900" height="150" aria-label="Biểu đồ đánh giá engine"></canvas>
+                                        <div id="review-classification-summary" class="flex flex-wrap gap-1.5 mt-2"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ================= TAB 3: ANALYSIS BOARD ================= -->
+            <section id="view-analysis" class="view-section hidden max-w-6xl mx-auto flex flex-col 2xl:flex-row gap-6 items-center justify-center">
+                <div class="flex gap-3 items-stretch justify-center board-analysis-layout">
+                    <div class="eval-bar-stack bg-zinc-900 rounded-md overflow-hidden flex flex-col border border-chess-border relative shadow-inner">
+                        <div id="analysis-eval-black" class="bg-zinc-800 w-full" style="height: 50%;"></div>
+                        <div id="analysis-eval-white" class="bg-zinc-100 w-full" style="height: 50%;"></div>
+                    </div>
+                    <div class="board-frame relative shadow-2xl rounded-lg overflow-hidden border-4 border-chess-card">
+                        <div id="analysis-chessboard" class="chessboard-grid chessboard-analysis select-none theme-green"></div>
+                    </div>
+                </div>
+                <div class="w-full 2xl:w-96 bg-chess-card rounded-2xl border border-chess-border p-5 flex flex-col gap-4 shadow-2xl">
+                    <h3 class="font-extrabold text-chess-textLight text-base flex items-center gap-2">
+                        <i class="fa-solid fa-microchip text-amber-400"></i> Bàn Phân Tích Stockfish
+                    </h3>
+                    <p class="text-xs text-chess-textMuted font-semibold">Tự do xếp cờ, thử nghiệm các biến thế mở màn và xem nước đi đề xuất tốt nhất từ engine.</p>
+                    <div class="bg-chess-panel p-4 rounded-xl border border-chess-border flex flex-col gap-2">
+                        <div class="flex justify-between text-xs font-extrabold">
+                            <span class="text-chess-textMuted">Đánh giá Stockfish:</span>
+                            <span id="analysis-eval-badge" class="text-chess-green">+0.32</span>
+                        </div>
+                        <div class="text-xs text-chess-textMuted font-semibold">
+                            <span class="font-extrabold text-chess-textLight">Biến tốt nhất:</span> <span id="analysis-best-line" class="text-chess-green">Đang chờ Stockfish phân tích…</span>
+                        </div>
+                        <div id="analysis-engine-meta" class="text-[10px] text-chess-textMuted font-bold">Engine: Stockfish Online API · depth tối đa 15</div>
+                        <div id="analysis-lines" class="engine-lines"><div class="text-[11px] text-chess-textMuted">Stockfish Online API trả về một biến chính cho mỗi vị trí.</div></div>
+                    </div>
+                    <div class="flex flex-col gap-2">
+                        <button onclick="updateAnalysisEvaluation(true)" class="w-full py-2.5 btn-chess-green text-white font-extrabold rounded-xl text-xs transition border border-chess-border"><i class="fa-solid fa-rotate mr-1"></i> Phân Tích / Thử Lại</button>
+                        <button onclick="resetAnalysisBoard()" class="w-full py-2.5 bg-chess-panel hover:bg-chess-hover text-chess-textLight font-extrabold rounded-xl text-xs transition border border-chess-border">Đặt Lại Bàn Cờ</button>
+                        <button onclick="copyFEN()" class="w-full py-2.5 bg-chess-panel hover:bg-chess-hover text-chess-textLight font-extrabold rounded-xl text-xs transition border border-chess-border">Sao Chép Chuỗi FEN</button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ================= TAB 4: SETTINGS & THEMES ================= -->
+            <section id="view-settings" class="view-section hidden max-w-4xl mx-auto flex flex-col gap-6">
+                <div class="bg-chess-card p-6 rounded-2xl border border-chess-border shadow-xl flex flex-col gap-6">
+                    <h2 class="text-lg font-black text-chess-textLight flex items-center gap-2">
+                        <i class="fa-solid fa-sliders text-purple-400"></i> Cài Đặt Giao Diện & Âm Thanh
+                    </h2>
+                    
+                    <div class="flex flex-col gap-3">
+                        <label class="text-xs font-extrabold text-chess-textMuted uppercase tracking-wider">Chủ Đề Bàn Cờ (Modern Board Themes)</label>
+                        <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                            <button onclick="setBoardTheme('theme-green')" class="p-4 bg-chess-panel border-2 border-chess-green rounded-xl flex flex-col items-center gap-2 hover:bg-chess-hover transition">
+                                <div class="w-12 h-12 rounded grid grid-cols-2 overflow-hidden shadow"><div class="bg-[#ebecd0]"></div><div class="bg-[#739552]"></div><div class="bg-[#739552]"></div><div class="bg-[#ebecd0]"></div></div>
+                                <span class="text-xs font-bold text-chess-textLight">Xanh Cây Chuẩn</span>
+                            </button>
+                            <button onclick="setBoardTheme('theme-wood')" class="p-4 bg-chess-panel border border-chess-border rounded-xl flex flex-col items-center gap-2 hover:bg-chess-hover transition">
+                                <div class="w-12 h-12 rounded grid grid-cols-2 overflow-hidden shadow"><div class="bg-[#f0d9b5]"></div><div class="bg-[#b58863]"></div><div class="bg-[#b58863]"></div><div class="bg-[#f0d9b5]"></div></div>
+                                <span class="text-xs font-bold text-chess-textLight">Gỗ Cổ Điển</span>
+                            </button>
+                            <button onclick="setBoardTheme('theme-glass')" class="p-4 bg-chess-panel border border-chess-border rounded-xl flex flex-col items-center gap-2 hover:bg-chess-hover transition">
+                                <div class="w-12 h-12 rounded grid grid-cols-2 overflow-hidden shadow"><div class="bg-[#e2e8f0]"></div><div class="bg-[#475569]"></div><div class="bg-[#475569]"></div><div class="bg-[#e2e8f0]"></div></div>
+                                <span class="text-xs font-bold text-chess-textLight">Thủy Tinh Xám</span>
+                            </button>
+                            <button onclick="setBoardTheme('theme-dark')" class="p-4 bg-chess-panel border border-chess-border rounded-xl flex flex-col items-center gap-2 hover:bg-chess-hover transition">
+                                <div class="w-12 h-12 rounded grid grid-cols-2 overflow-hidden shadow"><div class="bg-[#3b3b3b]"></div><div class="bg-[#222222]"></div><div class="bg-[#222222]"></div><div class="bg-[#3b3b3b]"></div></div>
+                                <span class="text-xs font-bold text-chess-textLight">Tối Hiện Đại</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+        </div>
+    </main>
+
+    <!-- TOAST NOTIFICATIONS -->
+    <div id="toast-container" class="fixed bottom-6 right-6 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+    <!-- MAIN JAVASCRIPT LOGIC -->
+    <script>
+        // --- CHESS.COM AUDIO SYNTHESIZER (Web Audio API) ---
+        let soundEnabled = true;
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+        function playSound(type) {
+            if (!soundEnabled) return;
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            
+            const now = audioCtx.currentTime;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+
+            if (type === 'move') {
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(320, now);
+                osc.frequency.exponentialRampToValueAtTime(120, now + 0.08);
+                gain.gain.setValueAtTime(0.3, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+                osc.start(now);
+                osc.stop(now + 0.08);
+            } else if (type === 'capture') {
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(240, now);
+                osc.frequency.exponentialRampToValueAtTime(80, now + 0.12);
+                gain.gain.setValueAtTime(0.4, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+                osc.start(now);
+                osc.stop(now + 0.12);
+            } else if (type === 'check') {
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(520, now);
+                osc.frequency.setValueAtTime(650, now + 0.08);
+                gain.gain.setValueAtTime(0.2, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
+                osc.start(now);
+                osc.stop(now + 0.18);
+            } else if (type === 'gameover') {
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(400, now);
+                osc.frequency.setValueAtTime(300, now + 0.12);
+                osc.frequency.setValueAtTime(200, now + 0.24);
+                gain.gain.setValueAtTime(0.3, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+                osc.start(now);
+                osc.stop(now + 0.4);
             }
-        }).fail(function() {
-            $('#suggestion').text('❌ Lỗi kết nối đến máy chủ AI!');
-        });
-    });
+        }
 
-    $(document).ready(function() {
-        initBoard();
-    });
-</script>
+        function toggleAudio() {
+            soundEnabled = !soundEnabled;
+            document.getElementById('sound-btn').innerHTML = `<i class="fa-solid fa-volume-${soundEnabled ? 'high' : 'xmark'} text-chess-green"></i> <span class="hidden sm:inline">Âm thanh: ${soundEnabled ? 'Bật' : 'Tắt'}</span>`;
+            showToast(`Âm thanh đã được ${soundEnabled ? 'bật' : 'tắt'}`);
+        }
+
+        function showToast(msg) {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = 'pointer-events-auto bg-chess-card border border-chess-border text-chess-textLight px-4 py-3 rounded-xl shadow-2xl text-xs font-bold flex items-center gap-2.5 animate-bounce';
+            toast.innerHTML = `<i class="fa-solid fa-circle-info text-chess-green"></i> <span>${msg}</span>`;
+            container.appendChild(toast);
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                setTimeout(() => toast.remove(), 300);
+            }, 2500);
+        }
+
+        // --- NAVIGATION SWITCHER ---
+        function switchTab(tabId) {
+            document.querySelectorAll('.view-section').forEach(el => el.classList.add('hidden'));
+            document.querySelectorAll('.nav-btn').forEach(el => {
+                el.classList.remove('bg-chess-hover', 'text-chess-textLight');
+                el.classList.add('text-chess-textMuted');
+            });
+
+            document.getElementById(`view-${tabId}`).classList.remove('hidden');
+            const activeBtn = document.getElementById(`nav-${tabId}`);
+            activeBtn.classList.add('bg-chess-hover', 'text-chess-textLight');
+            activeBtn.classList.remove('text-chess-textMuted');
+
+            const titles = {
+                play: '<i class="fa-solid fa-robot text-chess-green"></i> Đấu Cờ Với Stockfish Bot',
+                review: '<i class="fa-solid fa-magnifying-glass-chart text-blue-400"></i> Tra Cứu & Phân Tích Ván Đấu Chess.com',
+                analysis: '<i class="fa-solid fa-microchip text-amber-400"></i> Bàn Phân Tích Stockfish',
+                settings: '<i class="fa-solid fa-sliders text-purple-400"></i> Cài Đặt Giao Diện & Âm Thanh'
+            };
+            document.getElementById('current-mode-title').innerHTML = titles[tabId];
+            if (tabId === 'analysis' && window.renderAnalysisBoard) window.renderAnalysisBoard();
+        }
+
+        // Bộ quân cờ PNG Neo: dùng ảnh quân thật thay vì emoji/ký tự.
+        function getPiecePngUrl(pieceObj) {
+            if (!pieceObj) return '';
+            const c = pieceObj.color === 'w' ? 'w' : 'b';
+            const t = pieceObj.type.toUpperCase();
+            return `https://images.chesscomfiles.com/chess-themes/pieces/neo/150/${c}${t.toLowerCase()}.png`;
+        }
+
+        // ================= TAB 1: PLAY VS BOT + REAL STOCKFISH UCI =================
+        let game = new Chess();
+        let selectedSquare = null;
+        let possibleMoves = [];
+        let botElo = 1500;
+        let playerColor = 'w';
+        let pendingPromotion = null;
+        let lastMoveBadgeSquare = null;
+        let lastMoveBadgeInfo = null;
+        let latestPlayEvalWhite = 0;
+        let botMoveInProgress = false;
+
+        // Stockfish Online REST API backend for GitHub Pages.
+        // Uses the same endpoint as the user's working mobile example; no local WASM/Worker download.
+        // API documentation: https://stockfish.online/docs.php (maximum depth is 15).
+        const STOCKFISH_API_URL = 'https://stockfish.online/api/s/v2.php';
+        const STOCKFISH_API_TIMEOUT_MS = 22000;
+        let stockfishReady = false;
+        let stockfishApiChain = Promise.resolve();
+        let stockfishApiRequestCount = 0;
+
+        function setEngineStatus(text, state='loading', detail='') {
+            const pill = document.getElementById('engine-status');
+            const label = document.getElementById('engine-status-text');
+            if (label) label.textContent = text;
+            if (pill) {
+                pill.classList.toggle('ready', state === 'ready');
+                pill.classList.toggle('error', state === 'error');
+                pill.title = detail || (state === 'ready'
+                    ? 'Stockfish Online API đã trả kết quả thành công'
+                    : 'Nhấn để kiểm tra hoặc thử lại Stockfish Online API');
+            }
+        }
+
+        // No local engine file is loaded. A real API request is made when analysis is requested.
+        function initStockfish() {
+            return Promise.resolve();
+        }
+
+        function retryStockfish() {
+            setEngineStatus('Đang kiểm tra Stockfish API…', 'loading', 'Đang gửi một vị trí mẫu tới stockfish.online');
+            const probeFen = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
+            analyzeFen(probeFen, 5, 1).then(() => {
+                showToast('Stockfish Online API phản hồi thành công.');
+            }).catch(error => {
+                showToast((error && error.message) ? error.message : 'Không kết nối được Stockfish Online API.');
+            });
+        }
+
+        function apiErrorMessage(status, body) {
+            let detail = '';
+            try {
+                const parsed = JSON.parse(body);
+                detail = parsed.error || parsed.message || parsed.detail || '';
+            } catch (_) {}
+            if (!detail && body) detail = String(body).replace(/\s+/g, ' ').slice(0, 180);
+            if (status === 429) return 'Stockfish API đang giới hạn số yêu cầu (HTTP 429). Hãy đợi một chút rồi thử lại.';
+            if (status === 503 || status === 502 || status === 504) return `Máy chủ Stockfish đang bận (HTTP ${status}). Thử lại sau.`;
+            return `Stockfish API trả HTTP ${status}${detail ? ': ' + detail : '.'}`;
+        }
+
+        async function performStockfishApiRequest(fen, requestedDepth=12) {
+            const depth = Math.max(1, Math.min(15, Math.round(Number(requestedDepth) || 12)));
+            const query = new URLSearchParams({fen: String(fen), depth: String(depth)});
+            const url = `${STOCKFISH_API_URL}?${query.toString()}`;
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), STOCKFISH_API_TIMEOUT_MS);
+            stockfishApiRequestCount += 1;
+            setEngineStatus(`Stockfish Online · phân tích ${depth}`, 'loading', `Yêu cầu ${stockfishApiRequestCount} · giới hạn chờ ${STOCKFISH_API_TIMEOUT_MS / 1000}s`);
+            let response;
+            let rawBody = '';
+            try {
+                response = await fetch(url, {
+                    method: 'GET',
+                    mode: 'cors',
+                    cache: 'no-store',
+                    headers: {'Accept': 'application/json'},
+                    signal: controller.signal
+                });
+                rawBody = await response.text();
+            } catch (error) {
+                if (error && error.name === 'AbortError') {
+                    throw new Error(`Stockfish API hết thời gian chờ ${STOCKFISH_API_TIMEOUT_MS / 1000} giây. Máy chủ có thể đang bận; bấm trạng thái Stockfish để thử lại.`);
+                }
+                throw new Error('Không kết nối được stockfish.online. Hãy kiểm tra Internet; nếu Console báo CORS thì máy chủ API đang chặn yêu cầu từ trang này.');
+            } finally {
+                clearTimeout(timeoutId);
+            }
+            if (!response.ok) throw new Error(apiErrorMessage(response.status, rawBody));
+
+            let data;
+            try { data = JSON.parse(rawBody); }
+            catch (_) { throw new Error('Stockfish API không trả JSON hợp lệ.'); }
+            if (!data || data.success !== true) {
+                const detail = data && (data.error || data.message || data.detail);
+                throw new Error(`Stockfish API không phân tích được vị trí${detail ? ': ' + detail : '.'}`);
+            }
+
+            const rawBest = String(data.bestmove || '');
+            const bestMatch = rawBest.match(/\bbestmove\s+(\S+)/i);
+            const bareMoveMatch = rawBest.match(/\b([a-h][1-8][a-h][1-8][qrbn]?)\b/i);
+            const bestmove = bestMatch ? bestMatch[1] : (bareMoveMatch ? bareMoveMatch[1] : '(none)');
+            const fenParts = String(fen).trim().split(/\s+/);
+            const sideToMoveSign = fenParts[1] === 'b' ? -1 : 1;
+            const isMate = data.mate !== null && data.mate !== undefined && Number.isFinite(Number(data.mate));
+            let scoreType = isMate ? 'mate' : 'cp';
+            let rawScore, cpEquivalent, scorePawns;
+
+            // The service's evaluation/mate values are White-perspective; convert to UCI's
+            // side-to-move perspective because the rest of this app expects UCI-style scores.
+            if (isMate) {
+                rawScore = Number(data.mate) * sideToMoveSign;
+                cpEquivalent = Math.sign(rawScore || 1) * (10000 - Math.min(99, Math.abs(rawScore)) * 100);
+                scorePawns = cpEquivalent / 100;
+            } else {
+                const whiteEvaluation = Number(data.evaluation);
+                if (!Number.isFinite(whiteEvaluation)) throw new Error('Stockfish API thiếu trường evaluation hợp lệ.');
+                scorePawns = whiteEvaluation * sideToMoveSign;
+                cpEquivalent = Math.round(scorePawns * 100);
+                rawScore = cpEquivalent;
+            }
+
+            const continuationTokens = String(data.continuation || '')
+                .trim().split(/\s+/).filter(token => /^[a-h][1-8][a-h][1-8][qrbn]?$/i.test(token));
+            if (bestmove !== '(none)' && bestmove !== '0000' && (!continuationTokens.length || continuationTokens[0] !== bestmove)) {
+                continuationTokens.unshift(bestmove);
+            }
+            const line = {
+                depth,
+                multipv: 1,
+                scoreType,
+                rawScore,
+                cpEquivalent,
+                scorePawns,
+                pv: continuationTokens.join(' ')
+            };
+            stockfishReady = true;
+            setEngineStatus('Stockfish Online API · sẵn sàng', 'ready', 'API đã trả về kết quả thành công. Bấm để kiểm tra lại khi cần.');
+            return {bestmove, lines:[line], fen, depth, source:'Stockfish Online API'};
+        }
+
+        function analyzeFen(fen, depth=12, multiPV=1, options={}) {
+            // The public REST API returns one principal variation only. Serialize calls so
+            // whole-game review does not flood the free API with simultaneous requests.
+            const run = () => performStockfishApiRequest(fen, depth);
+            const task = stockfishApiChain.then(run, run).catch(error => {
+                const detail = error && error.message ? error.message : String(error || 'Lỗi không xác định');
+                setEngineStatus('Stockfish API lỗi · bấm thử lại', 'error', detail);
+                throw error;
+            });
+            stockfishApiChain = task.catch(() => {});
+            return task;
+        }
+
+        function primaryLine(result) {
+            if (!result || !result.lines || !result.lines.length) return {scoreType:'cp',rawScore:0,cpEquivalent:0,scorePawns:0,pv:''};
+            return result.lines[0];
+        }
+
+        function scoreInWhitePerspective(fen, line) {
+            const score = line ? (line.scorePawns || 0) : 0;
+            return (String(fen).split(/\s+/)[1] || 'w') === 'w' ? score : -score;
+        }
+
+        function formatScore(line, showMate=true) {
+            if (!line) return '0.0';
+            if (showMate && line.scoreType === 'mate') return (line.rawScore > 0 ? '+' : '') + 'M' + line.rawScore;
+            const pawns = line.scorePawns || 0;
+            return (pawns > 0 ? '+' : '') + pawns.toFixed(2);
+        }
+
+        function parseUciMove(uci) {
+            if (!uci || uci === '(none)' || uci === '0000') return null;
+            return {from:uci.slice(0,2), to:uci.slice(2,4), promotion:uci.length > 4 ? uci[4] : undefined};
+        }
+
+        function uciLineToSan(fen, uciLine, maxMoves=12) {
+            if (!uciLine) return '—';
+            let temp;
+            try { temp = new Chess(fen); } catch (_) { temp = new Chess(); }
+            const parts = uciLine.trim().split(/\s+/).slice(0,maxMoves);
+            const sanParts = [];
+            for (const token of parts) {
+                const uci = parseUciMove(token);
+                if (!uci) break;
+                try {
+                    const move = temp.move(uci);
+                    if (!move) break;
+                    sanParts.push(move.san);
+                } catch (_) { break; }
+            }
+            return sanParts.join(' ') || uciLine;
+        }
+
+        function getBotDepth(level) {
+            if (level < 250) return 3;
+            if (level < 700) return 5;
+            if (level < 1300) return 7;
+            if (level < 2000) return 9;
+            if (level < 3000) return 11;
+            if (level < 5000) return 13;
+            return 15;
+        }
+
+        function updateBotElo(val) {
+            botElo = parseInt(val, 10) || 1;
+            document.getElementById('elo-value-label').innerText = botElo.toLocaleString('vi-VN');
+            let rankText = 'Tập chơi';
+            if (botElo >= 700) rankText = 'Cơ bản';
+            if (botElo >= 1300) rankText = 'Trung bình';
+            if (botElo >= 1800) rankText = 'Mạnh';
+            if (botElo >= 3000) rankText = 'Rất mạnh';
+            if (botElo > 3190) rankText = 'Toàn lực engine';
+            document.getElementById('bot-elo-badge').innerText = `Cấp độ: ${botElo.toLocaleString('vi-VN')} (${rankText})`;
+        }
+
+        function renderPlayBoard() {
+            const boardEl = document.getElementById('chessboard');
+            boardEl.innerHTML = '';
+            const board = game.board();
+            for (let r = 0; r < 8; r++) {
+                for (let c = 0; c < 8; c++) {
+                    const actualR = playerColor === 'w' ? r : 7 - r;
+                    const actualC = playerColor === 'w' ? c : 7 - c;
+                    const sqId = String.fromCharCode(97 + actualC) + (8 - actualR);
+                    const piece = board[actualR][actualC];
+                    const sqDiv = document.createElement('div');
+                    sqDiv.className = `w-full h-full flex items-center justify-center relative cursor-pointer ${(r + c) % 2 === 0 ? 'sq-light' : 'sq-dark'}`;
+                    sqDiv.dataset.square = sqId;
+                    if (c === 0) sqDiv.dataset.rankLabel = String(8 - actualR);
+                    if (r === 7) sqDiv.dataset.fileLabel = String.fromCharCode(97 + actualC);
+                    if (selectedSquare === sqId) sqDiv.classList.add('hl-selected');
+                    const history = game.history({verbose:true});
+                    if (history.length) {
+                        const lastM = history[history.length - 1];
+                        if (lastM.from === sqId || lastM.to === sqId) sqDiv.classList.add('hl-lastmove');
+                    }
+                    if (possibleMoves.includes(sqId)) sqDiv.classList.add(piece ? 'hl-capture' : 'hl-dot');
+                    if (piece) {
+                        const pieceEl = document.createElement('img');
+                        pieceEl.className = 'piece-img';
+                        pieceEl.alt = `${piece.color === 'w' ? 'Trắng' : 'Đen'} ${piece.type}`;
+                        pieceEl.draggable = false;
+                        pieceEl.src = getPiecePngUrl(piece);
+                        pieceEl.onerror = function(){ this.style.display='none'; };
+                        sqDiv.appendChild(pieceEl);
+                    }
+                    if (lastMoveBadgeSquare === sqId && lastMoveBadgeInfo) {
+                        const badgeDiv = document.createElement('div');
+                        badgeDiv.className = `badge-icon-overlay ${lastMoveBadgeInfo.bgClass}`;
+                        badgeDiv.textContent = lastMoveBadgeInfo.icon;
+                        sqDiv.appendChild(badgeDiv);
+                    }
+                    sqDiv.addEventListener('click', () => handleSquareClick(sqId));
+                    boardEl.appendChild(sqDiv);
+                }
+            }
+            updateEvalBar();
+            updateMoveHistory();
+        }
+
+        function handleSquareClick(sq) {
+            if (game.game_over() || botMoveInProgress || game.turn() !== playerColor) return;
+            if (selectedSquare === null) {
+                const piece = game.get(sq);
+                if (piece && piece.color === playerColor) {
+                    selectedSquare = sq;
+                    possibleMoves = game.moves({square:sq, verbose:true}).map(m => m.to);
+                    renderPlayBoard();
+                }
+                return;
+            }
+            if (selectedSquare === sq) {
+                selectedSquare = null; possibleMoves = []; renderPlayBoard(); return;
+            }
+            const piece = game.get(selectedSquare);
+            const isPromotion = piece && piece.type === 'p' && ((piece.color === 'w' && sq[1] === '8') || (piece.color === 'b' && sq[1] === '1'));
+            if (isPromotion) {
+                pendingPromotion = {from:selectedSquare,to:sq,beforeFen:game.fen(),mover:game.turn()};
+                document.getElementById('promotion-modal').classList.remove('hidden');
+                return;
+            }
+            const beforeFen = game.fen();
+            const mover = game.turn();
+            const moveRes = game.move({from:selectedSquare,to:sq,promotion:'q'});
+            if (moveRes) {
+                executeMoveEffect(moveRes);
+                selectedSquare = null; possibleMoves = []; lastMoveBadgeSquare = moveRes.to;
+                lastMoveBadgeInfo = null;
+                renderPlayBoard();
+                const afterFen = game.fen();
+                evaluatePlayedMove(beforeFen, afterFen, moveRes, mover).finally(() => {
+                    if (!game.game_over()) queueBotMove();
+                    else showGameResult();
+                });
+            } else {
+                const pieceAtTarget = game.get(sq);
+                if (pieceAtTarget && pieceAtTarget.color === playerColor) {
+                    selectedSquare = sq;
+                    possibleMoves = game.moves({square:sq,verbose:true}).map(m=>m.to);
+                } else { selectedSquare = null; possibleMoves = []; }
+                renderPlayBoard();
+            }
+        }
+
+        function executeMoveEffect(mRes) {
+            if (!mRes) return;
+            if (game.in_check()) playSound('check');
+            else if (mRes.captured) playSound('capture');
+            else playSound('move');
+        }
+
+        function classifyLoss(lossCp, isBest) {
+            if (isBest) return {key:'best',name:'Tốt nhất',badge:'badge-best',icon:'✓',message:'Nước đi trùng với lựa chọn hàng đầu của Stockfish.'};
+            if (lossCp <= 10) return {key:'excellent',name:'Xuất sắc',badge:'badge-best',icon:'!',message:'Chỉ làm giảm lợi thế rất ít so với lựa chọn tốt nhất.'};
+            if (lossCp <= 25) return {key:'good',name:'Tốt',badge:'badge-good',icon:'✓',message:'Nước đi ổn; có lựa chọn chính xác hơn một chút.'};
+            if (lossCp <= 50) return {key:'inaccuracy',name:'Chưa chính xác',badge:'badge-inaccuracy',icon:'?!',message:'Nước đi làm giảm lợi thế đáng kể.'};
+            if (lossCp <= 100) return {key:'mistake',name:'Sai lầm',badge:'badge-mistake',icon:'?',message:'Nước đi bỏ lỡ cách chơi tốt hơn và khiến thế cờ xấu đi.'};
+            return {key:'blunder',name:'Blunder · Sai lầm lớn',badge:'badge-blunder',icon:'??',message:'Nước đi làm mất nhiều lợi thế theo đánh giá của engine.'};
+        }
+
+        async function evaluatePlayedMove(beforeFen, afterFen, move, mover) {
+            const commentaryEl = document.getElementById('live-textbook-comment');
+            const badgeEl = document.getElementById('live-move-badge');
+            commentaryEl.textContent = 'Stockfish đang so sánh thế cờ trước và sau nước đi…';
+            badgeEl.className = 'px-2.5 py-0.5 rounded-full text-xs font-extrabold bg-chess-hover text-chess-textLight';
+            badgeEl.textContent = 'Đang phân tích';
+            try {
+                const before = await analyzeFen(beforeFen, 10, 1);
+                const after = await analyzeFen(afterFen, 10, 1);
+                const beforeLine = primaryLine(before), afterLine = primaryLine(after);
+                const lossCp = Math.max(0, beforeLine.cpEquivalent + afterLine.cpEquivalent);
+                const expected = parseUciMove(before.bestmove);
+                const isBest = !!expected && expected.from === move.from && expected.to === move.to && (expected.promotion || '') === (move.promotion || '');
+                const cls = classifyLoss(lossCp, isBest);
+                badgeEl.className = `px-2.5 py-0.5 rounded-full text-xs font-extrabold ${cls.badge}`;
+                badgeEl.textContent = `${cls.name}${isBest ? '' : ` · −${(lossCp/100).toFixed(2)}`}`;
+                commentaryEl.textContent = `${cls.message} Stockfish đánh giá sau nước đi: ${formatWhiteScore(afterFen, afterLine)}. Gợi ý: ${uciLineToSan(beforeFen, before.bestmove, 1)}.`;
+                lastMoveBadgeInfo = {bgClass:cls.badge, icon:cls.icon};
+                lastMoveBadgeSquare = move.to;
+                if (game.fen() === afterFen) renderPlayBoard();
+                latestPlayEvalWhite = scoreInWhitePerspective(afterFen, afterLine);
+                updateEvalBar();
+            } catch (error) {
+                commentaryEl.textContent = 'Chưa lấy được phân tích Stockfish. Kiểm tra kết nối Stockfish Online API rồi thử lại. Nước đi vẫn hợp lệ.';
+                badgeEl.className = 'px-2.5 py-0.5 rounded-full text-xs font-extrabold badge-inaccuracy';
+                badgeEl.textContent = 'Engine chưa sẵn sàng';
+            }
+        }
+
+        function formatWhiteScore(fen, line) {
+            if (line && line.scoreType === 'mate') {
+                const mate = (fen.split(/\s+/)[1] === 'w') ? line.rawScore : -line.rawScore;
+                return (mate > 0 ? '+' : '') + 'M' + mate;
+            }
+            const val = scoreInWhitePerspective(fen, line);
+            return (val > 0 ? '+' : '') + val.toFixed(2);
+        }
+
+        function selectPromotion(pPiece) {
+            document.getElementById('promotion-modal').classList.add('hidden');
+            if (!pendingPromotion) return;
+            const pending = pendingPromotion;
+            pendingPromotion = null;
+            const moveRes = game.move({from:pending.from,to:pending.to,promotion:pPiece});
+            if (moveRes) {
+                executeMoveEffect(moveRes);
+                selectedSquare = null; possibleMoves = []; lastMoveBadgeSquare = moveRes.to; lastMoveBadgeInfo = null;
+                renderPlayBoard();
+                evaluatePlayedMove(pending.beforeFen, game.fen(), moveRes, pending.mover).finally(() => {
+                    if (!game.game_over()) queueBotMove(); else showGameResult();
+                });
+            }
+        }
+
+        async function queueBotMove() {
+            if (botMoveInProgress || game.game_over() || game.turn() === playerColor) return;
+            botMoveInProgress = true;
+            document.getElementById('bot-thinking').classList.remove('hidden');
+            try {
+                const positionFen = game.fen();
+                let botMove = null;
+                const legal = game.moves({verbose:true});
+                // Very low slider values deliberately play a random legal move occasionally.
+                if (botElo < 180 && Math.random() < 0.45) {
+                    botMove = legal[Math.floor(Math.random() * legal.length)];
+                } else {
+                    const result = await analyzeFen(positionFen, getBotDepth(botElo), 1, {botLevel:botElo});
+                    if (game.fen() !== positionFen || game.game_over()) return;
+                    const uci = parseUciMove(result.bestmove);
+                    if (uci) botMove = legal.find(m => m.from === uci.from && m.to === uci.to && (m.promotion || '') === (uci.promotion || ''));
+                }
+                if (!botMove || game.fen() !== positionFen) return;
+                const res = game.move({from:botMove.from,to:botMove.to,promotion:botMove.promotion || 'q'});
+                if (res) {
+                    executeMoveEffect(res);
+                    lastMoveBadgeSquare = res.to;
+                    lastMoveBadgeInfo = null;
+                    latestPlayEvalWhite = 0;
+                    renderPlayBoard();
+                    try {
+                        const evaluatedFen = game.fen();
+                        const evalResult = await analyzeFen(evaluatedFen, 9, 1);
+                        if (game.fen() === evaluatedFen) {
+                            const line = primaryLine(evalResult);
+                            latestPlayEvalWhite = scoreInWhitePerspective(game.fen(), line);
+                            updateEvalBar();
+                            document.getElementById('live-move-badge').className = 'px-2.5 py-0.5 rounded-full text-xs font-extrabold badge-best';
+                            document.getElementById('live-move-badge').textContent = 'Stockfish đã chọn';
+                            document.getElementById('live-textbook-comment').textContent = `Bot chọn ${res.san}. Engine đánh giá thế cờ: ${formatWhiteScore(game.fen(), line)}.`;
+                        }
+                    } catch (_) {}
+                    renderPlayBoard();
+                    if (game.game_over()) showGameResult();
+                }
+            } catch (error) {
+                showToast('Stockfish chưa tải được. Hãy kiểm tra mạng và tải lại trang.');
+            } finally {
+                botMoveInProgress = false;
+                document.getElementById('bot-thinking').classList.add('hidden');
+                renderPlayBoard();
+            }
+        }
+
+        function showGameResult() {
+            playSound('gameover');
+            const msg = game.in_checkmate() ? `Chiếu hết! ${game.turn() === 'w' ? 'Đen' : 'Trắng'} thắng.` : 'Ván đấu kết thúc: hòa hoặc không còn nước hợp lệ.';
+            document.getElementById('live-textbook-comment').textContent = msg;
+        }
+
+        function updateEvalBar() {
+            const val = Math.max(-10, Math.min(10, latestPlayEvalWhite));
+            const whitePct = 50 + val * 5;
+            const blackEl = document.getElementById('eval-bar-black');
+            const whiteEl = document.getElementById('eval-bar-white');
+            const textEl = document.getElementById('eval-score-text');
+            if (blackEl) blackEl.style.height = `${100-whitePct}%`;
+            if (whiteEl) whiteEl.style.height = `${whitePct}%`;
+            if (textEl) textEl.innerText = (latestPlayEvalWhite > 0 ? '+' : '') + latestPlayEvalWhite.toFixed(1);
+        }
+
+        function updateMoveHistory() {
+            const history = game.history({verbose:true});
+            const tbody = document.getElementById('move-history-body');
+            tbody.innerHTML = '';
+            for (let i=0; i<history.length; i+=2) {
+                const tr = document.createElement('tr');
+                tr.className = 'border-b border-chess-border/30 hover:bg-chess-hover/50';
+                const moveNum = Math.floor(i/2)+1;
+                const wMove = history[i] ? history[i].san : '';
+                const bMove = history[i+1] ? history[i+1].san : '';
+                tr.innerHTML = `<td class="py-1 px-2 font-bold text-chess-textMuted">${moveNum}.</td><td class="py-1 px-2 font-extrabold text-chess-textLight">${wMove}</td><td class="py-1 px-2 font-extrabold text-chess-textLight">${bMove}</td>`;
+                tbody.appendChild(tr);
+            }
+            const container = document.getElementById('move-history-container');
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function undoMove() {
+            if (botMoveInProgress) return;
+            game.undo();
+            if (game.history().length && game.turn() !== playerColor) game.undo();
+            selectedSquare = null; possibleMoves = []; lastMoveBadgeSquare = null; lastMoveBadgeInfo = null;
+            latestPlayEvalWhite = 0;
+            renderPlayBoard();
+            showToast('Đã lùi lại nước đi.');
+        }
+
+        async function getHint() {
+            try {
+                const result = await analyzeFen(game.fen(), 12, 1);
+                const san = uciLineToSan(game.fen(), result.bestmove, 1);
+                showToast(`Stockfish gợi ý: ${san}`);
+                document.getElementById('live-textbook-comment').textContent = `Nước tốt nhất theo Stockfish: ${san}. Biến chính: ${uciLineToSan(game.fen(), primaryLine(result).pv, 8)}.`;
+            } catch (_) { showToast('Stockfish chưa sẵn sàng.'); }
+        }
+
+        function flipBoard() {
+            playerColor = playerColor === 'w' ? 'b' : 'w';
+            renderPlayBoard();
+            showToast(`Bạn đang cầm quân ${playerColor === 'w' ? 'Trắng' : 'Đen'}.`);
+            if (game.turn() !== playerColor) queueBotMove();
+        }
+
+        function resignGame() {
+            playSound('gameover');
+            game.reset(); selectedSquare = null; possibleMoves = []; lastMoveBadgeSquare = null; lastMoveBadgeInfo = null;
+            latestPlayEvalWhite = 0; renderPlayBoard();
+            showToast('Đã kết thúc ván hiện tại.');
+        }
+
+        function startNewGame() {
+            game.reset(); selectedSquare = null; possibleMoves = []; lastMoveBadgeSquare = null; lastMoveBadgeInfo = null;
+            latestPlayEvalWhite = 0; pendingPromotion = null;
+            document.getElementById('promotion-modal').classList.add('hidden');
+            document.getElementById('live-move-badge').className = 'px-2.5 py-0.5 rounded-full text-xs font-extrabold badge-best';
+            document.getElementById('live-move-badge').textContent = 'Chờ nước đi';
+            document.getElementById('live-textbook-comment').textContent = 'Stockfish sẽ chấm nước đi sau khi bạn di chuyển.';
+            renderPlayBoard(); showToast('Ván mới bắt đầu!');
+            if (playerColor === 'b') queueBotMove();
+        }
+
+        // ================= TAB 2: CHESS.COM REVIEW & LOOKUP =================
+        let loadedGames = [];
+        let reviewHistory = [];
+        let reviewCurrentIdx = 0;
+        let reviewChess = new Chess();
+
+        async function fetchChessComGames() {
+            const username = document.getElementById('chesscom-username-input').value.trim();
+            if (!username) { showToast("Vui lòng nhập username Chess.com!"); return; }
+
+            showToast(`Đang tải ván đấu của ${username}...`);
+            try {
+                const res = await fetch(`https://api.chess.com/pub/player/${username}/games/archives`);
+                if (!res.ok) throw new Error();
+                const data = await res.json();
+                if (!data.archives || data.archives.length === 0) throw new Error();
+
+                const lastArchive = data.archives[data.archives.length - 1];
+                const gRes = await fetch(lastArchive);
+                const gData = await gRes.json();
+
+                loadedGames = gData.games.slice(-10).reverse();
+                renderGamesList();
+                showToast(`Đã tải thành công ${loadedGames.length} ván gần nhất!`);
+            } catch (err) {
+                showToast("Không thể tải từ Chess.com API. Đang mở ván mẫu Kiện tướng!");
+                loadDemoGames();
+            }
+        }
+
+        function loadDemoGames() {
+            loadedGames = [
+                {
+                    white: { username: "MagnusCarlsen", rating: 2882 },
+                    black: { username: "Hikaru", rating: 2875 },
+                    pgn: "1. e4 e5 2. Nf3 Nc6 3. Bc4 Bc5 4. O-O Nf6 5. d3 d6 6. c3 a6 7. Re1 Ba7 8. h3 h6"
+                },
+                {
+                    white: { username: "GothamChess", rating: 2450 },
+                    black: { username: "DanyaNaroditsky", rating: 2650 },
+                    pgn: "1. d4 Nf6 2. c4 e6 3. Nc3 Bb4 4. e3 O-O 5. Bd3 d5 6. Nf3 c5"
+                }
+            ];
+            renderGamesList();
+        }
+
+        function renderGamesList() {
+            const container = document.getElementById('games-list-container');
+            container.innerHTML = '';
+
+            loadedGames.forEach((g, idx) => {
+                const item = document.createElement('div');
+                item.className = 'p-3 bg-chess-panel rounded-xl border border-chess-border hover:border-chess-green cursor-pointer transition flex items-center justify-between';
+                item.innerHTML = `
+                    <div class="overflow-hidden">
+                        <p class="text-xs font-black text-chess-textLight truncate">${g.white.username} vs ${g.black.username}</p>
+                        <p class="text-[10px] text-chess-textMuted font-bold">Chế độ Chớp / Siêu chớp</p>
+                    </div>
+                    <button onclick="selectGameForReview(${idx})" class="px-3 py-1.5 btn-chess-green text-white font-extrabold text-xs rounded-lg shrink-0">
+                        Xem Ván
+                    </button>
+                `;
+                container.appendChild(item);
+            });
+        }
+
+        let reviewStartFen = new Chess().fen();
+        let reviewMoveResults = [];
+        let reviewPositionScores = [];
+        let reviewAnalysisRunning = false;
+
+        function selectGameForReview(idx) {
+            const g = loadedGames[idx];
+            if (!g) return;
+            document.getElementById('review-placeholder').classList.add('hidden');
+            document.getElementById('review-active-content').classList.remove('hidden');
+            document.getElementById('review-white-player').innerText = `${g.white.username} (${g.white.rating})`;
+            document.getElementById('review-black-player').innerText = `${g.black.username} (${g.black.rating})`;
+            reviewChess = new Chess();
+            reviewChess.load_pgn(g.pgn);
+            reviewHistory = reviewChess.history({verbose:true});
+            const fenTag = (g.pgn.match(/\[FEN\s+"([^"]+)"\]/i) || [])[1];
+            reviewStartFen = fenTag || new Chess().fen();
+            reviewChess.load(reviewStartFen);
+            reviewCurrentIdx = 0;
+            reviewMoveResults = [];
+            reviewPositionScores = [];
+            document.getElementById('white-accuracy-score').textContent = '—';
+            document.getElementById('black-accuracy-score').textContent = '—';
+            document.getElementById('review-analysis-progress').textContent = 'Chưa phân tích';
+            document.getElementById('review-classification-summary').innerHTML = '';
+            drawReviewEvalGraph([]);
+            renderReviewBoard();
+        }
+
+        function renderReviewBoard() {
+            const boardEl = document.getElementById('review-chessboard');
+            boardEl.innerHTML = '';
+            const board = reviewChess.board();
+            const selectedResult = reviewCurrentIdx > 0 ? reviewMoveResults[reviewCurrentIdx-1] : null;
+            for (let r=0; r<8; r++) {
+                for (let c=0; c<8; c++) {
+                    const sqId = String.fromCharCode(97+c) + (8-r);
+                    const piece = board[r][c];
+                    const sqDiv = document.createElement('div');
+                    sqDiv.className = `w-full h-full flex items-center justify-center relative ${(r+c)%2===0 ? 'sq-light' : 'sq-dark'}`;
+                    sqDiv.dataset.square = sqId;
+                    if (c === 0) sqDiv.dataset.rankLabel = String(8 - r);
+                    if (r === 7) sqDiv.dataset.fileLabel = String.fromCharCode(97 + c);
+                    if (reviewHistory.length && reviewCurrentIdx > 0) {
+                        const prev = reviewHistory[reviewCurrentIdx-1];
+                        if (prev && (prev.from === sqId || prev.to === sqId)) sqDiv.classList.add('hl-lastmove');
+                    }
+                    if (piece) {
+                        const pieceEl = document.createElement('img');
+                        pieceEl.className = 'piece-img';
+                        pieceEl.alt = `${piece.color === 'w' ? 'Trắng' : 'Đen'} ${piece.type}`;
+                        pieceEl.draggable = false;
+                        pieceEl.src = getPiecePngUrl(piece);
+                        pieceEl.onerror = function(){ this.style.display='none'; };
+                        sqDiv.appendChild(pieceEl);
+                    }
+                    if (selectedResult && selectedResult.move.to === sqId) {
+                        const badge = document.createElement('div');
+                        badge.className = `badge-icon-overlay ${selectedResult.classification.badge}`;
+                        badge.textContent = selectedResult.classification.icon;
+                        sqDiv.appendChild(badge);
+                    }
+                    boardEl.appendChild(sqDiv);
+                }
+            }
+            document.getElementById('review-move-counter').innerText = `Nước ${reviewCurrentIdx} / ${reviewHistory.length}`;
+            const badgeEl = document.getElementById('review-move-badge');
+            const explanationEl = document.getElementById('review-move-explanation');
+            if (!selectedResult) {
+                badgeEl.className = 'px-2.5 py-0.5 rounded-full text-xs font-extrabold badge-best';
+                badgeEl.textContent = reviewMoveResults.length ? 'Chọn một nước đi' : 'Chưa phân tích';
+                explanationEl.textContent = reviewMoveResults.length ? 'Dùng Trước/Sau để xem đánh giá từng nước.' : 'Bấm “Phân Tích Toàn Bộ Ván” để Stockfish kiểm tra từng vị trí. Kết quả chưa được tự điền trước.';
+                return;
+            }
+            const cls = selectedResult.classification;
+            badgeEl.className = `px-2.5 py-0.5 rounded-full text-xs font-extrabold ${cls.badge}`;
+            badgeEl.textContent = `${cls.name} · −${(selectedResult.lossCp/100).toFixed(2)}`;
+            const bestSan = uciLineToSan(selectedResult.beforeFen, selectedResult.bestMove, 1);
+            const pvSan = uciLineToSan(selectedResult.beforeFen, selectedResult.pv, 8);
+            explanationEl.textContent = `${selectedResult.move.san}: ${cls.message} Mất lợi thế ước tính ${Math.round(selectedResult.lossCp)} centipawn. Nước tốt nhất: ${bestSan}. Biến chính: ${pvSan}.`;
+        }
+
+        function reviewStep(step) {
+            if (step === 1 && reviewCurrentIdx < reviewHistory.length) {
+                const m = reviewHistory[reviewCurrentIdx];
+                reviewChess.move({from:m.from,to:m.to,promotion:m.promotion});
+                reviewCurrentIdx++;
+            } else if (step === -1 && reviewCurrentIdx > 0) {
+                reviewCurrentIdx--;
+                reviewChess.undo();
+            }
+            renderReviewBoard();
+        }
+
+        function drawReviewEvalGraph(scores) {
+            const canvas = document.getElementById('review-eval-graph');
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
+            const w = canvas.width, h = canvas.height;
+            ctx.clearRect(0,0,w,h);
+            ctx.fillStyle = '#1b1a18'; ctx.fillRect(0,0,w,h);
+            const pad = 16, mid = h/2;
+            ctx.strokeStyle = '#45413b'; ctx.lineWidth = 1;
+            for (let i=0;i<=4;i++) { const y=pad+i*(h-pad*2)/4; ctx.beginPath(); ctx.moveTo(pad,y); ctx.lineTo(w-pad,y); ctx.stroke(); }
+            ctx.strokeStyle = '#78716c'; ctx.setLineDash([5,5]); ctx.beginPath(); ctx.moveTo(pad,mid); ctx.lineTo(w-pad,mid); ctx.stroke(); ctx.setLineDash([]);
+            if (!scores || !scores.length) {
+                ctx.fillStyle = '#989795'; ctx.font = 'bold 20px Nunito, sans-serif'; ctx.textAlign = 'center'; ctx.fillText('Chạy phân tích để xem biểu đồ',w/2,mid-2); return;
+            }
+            const points = scores.map((item,i)=>({x:pad+(w-2*pad)*(scores.length===1?0.5:i/(scores.length-1)),y:mid-Math.max(-8,Math.min(8,item.whiteEval))*(h-2*pad)/16}));
+            ctx.beginPath();
+            points.forEach((p,i)=>{ if(i===0) ctx.moveTo(p.x,p.y); else ctx.lineTo(p.x,p.y); });
+            ctx.lineWidth=4; ctx.lineJoin='round'; ctx.lineCap='round'; ctx.strokeStyle='#81b64c'; ctx.stroke();
+            const last=points[points.length-1]; ctx.fillStyle='#a3d168'; ctx.beginPath(); ctx.arc(last.x,last.y,5,0,Math.PI*2); ctx.fill();
+            ctx.fillStyle='#d6d3d1'; ctx.font='bold 16px Nunito, sans-serif'; ctx.textAlign='left'; ctx.fillText('+8',pad,14); ctx.fillText('0',pad,mid-5); ctx.fillText('−8',pad,h-2);
+        }
+
+        function accuracyFromLoss(lossCp) {
+            // Indicative local estimate only; Chess.com's official accuracy model is proprietary.
+            return Math.max(0, Math.min(100, 100 * Math.exp(-Math.max(0,lossCp) / 160)));
+        }
+
+        async function runFullReviewAnalysis() {
+            if (reviewAnalysisRunning) return;
+            if (!reviewHistory.length) { showToast('Ván chưa có nước đi để phân tích.'); return; }
+            reviewAnalysisRunning = true;
+            const button = document.querySelector('#review-active-content button[onclick="runFullReviewAnalysis()"]');
+            if (button) { button.disabled=true; button.innerHTML='<i class="fa-solid fa-spinner fa-spin"></i> Đang phân tích…'; }
+            try {
+                await initStockfish();
+                const temp = new Chess(reviewStartFen);
+                const positions = [{fen:temp.fen()}];
+                const moves = [];
+                for (const historyMove of reviewHistory) {
+                    const beforeFen = temp.fen();
+                    const played = temp.move({from:historyMove.from,to:historyMove.to,promotion:historyMove.promotion});
+                    if (!played) continue;
+                    const afterFen = temp.fen();
+                    moves.push({move:played,beforeFen,afterFen});
+                    positions.push({fen:afterFen});
+                }
+                const scores = [];
+                for (let i=0;i<positions.length;i++) {
+                    const result = await analyzeFen(positions[i].fen, 9, 1);
+                    const line = primaryLine(result);
+                    scores.push({fen:positions[i].fen, line, sideScore:line.cpEquivalent, whiteEval:scoreInWhitePerspective(positions[i].fen,line), result});
+                    document.getElementById('review-analysis-progress').textContent = `${i+1}/${positions.length} vị trí`;
+                    drawReviewEvalGraph(scores);
+                }
+                reviewPositionScores = scores;
+                reviewMoveResults = moves.map((record,i)=>{
+                    const before = scores[i] || {sideScore:0,result:{bestmove:'(none)'}};
+                    const after = scores[i+1] || {sideScore:0};
+                    const bestMove = before.result.bestmove;
+                    const bestUci = parseUciMove(bestMove);
+                    const isBest = !!bestUci && bestUci.from===record.move.from && bestUci.to===record.move.to && (bestUci.promotion||'')===(record.move.promotion||'');
+                    const lossCp = isBest ? 0 : Math.max(0, Math.min(3000, before.sideScore + after.sideScore));
+                    const cls = classifyLoss(lossCp,isBest);
+                    return {move:record.move,beforeFen:record.beforeFen,afterFen:record.afterFen,bestMove,pv:primaryLine(before.result).pv,lossCp,classification:cls};
+                });
+                const whiteLosses = reviewMoveResults.filter(x=>x.move.color==='w').map(x=>x.lossCp);
+                const blackLosses = reviewMoveResults.filter(x=>x.move.color==='b').map(x=>x.lossCp);
+                const averageAccuracy = arr => arr.length ? arr.reduce((sum,loss)=>sum+accuracyFromLoss(loss),0)/arr.length : 100;
+                document.getElementById('white-accuracy-score').textContent = `${averageAccuracy(whiteLosses).toFixed(1)}%`;
+                document.getElementById('black-accuracy-score').textContent = `${averageAccuracy(blackLosses).toFixed(1)}%`;
+                const counts = {};
+                reviewMoveResults.forEach(r=>{ counts[r.classification.key]=(counts[r.classification.key]||0)+1; });
+                const labelMap = {best:'Tốt nhất',excellent:'Xuất sắc',good:'Tốt',inaccuracy:'Chưa chính xác',mistake:'Sai lầm',blunder:'Blunder'};
+                const sumEl = document.getElementById('review-classification-summary'); sumEl.innerHTML='';
+                Object.keys(labelMap).forEach(key=>{
+                    const span=document.createElement('span'); span.className='review-stat';
+                    span.textContent=`${labelMap[key]}: ${counts[key]||0}`; sumEl.appendChild(span);
+                });
+                document.getElementById('review-analysis-progress').textContent = `Xong · ${positions.length} vị trí`;
+                reviewCurrentIdx = Math.min(reviewCurrentIdx, reviewHistory.length);
+                renderReviewBoard();
+                showToast('Phân tích Stockfish hoàn tất. Độ chính xác là ước tính từ mức mất điểm, không phải điểm CAPS chính thức của Chess.com.');
+            } catch (error) {
+                console.error(error);
+                document.getElementById('review-analysis-progress').textContent = 'Lỗi engine';
+                showToast('Không chạy được Stockfish Online API. Kiểm tra mạng hoặc thử lại sau; máy chủ API bên ngoài có thể đang bận.');
+            } finally {
+                reviewAnalysisRunning=false;
+                if (button) { button.disabled=false; button.innerHTML='<i class="fa-solid fa-wand-magic-sparkles"></i> Phân Tích Toàn Bộ Ván'; }
+            }
+        }
+
+        // ================= TAB 3: LIVE STOCKFISH ANALYSIS BOARD =================
+        let analysisChess = new Chess();
+        let analysisSelectedSquare = null;
+        let analysisPossibleMoves = [];
+        let analysisRequestedFen = '';
+        let analysisLastResult = null;
+
+        window.renderAnalysisBoard = function() {
+            const boardEl = document.getElementById('analysis-chessboard');
+            boardEl.innerHTML = '';
+            boardEl.style.position = 'relative';
+            const board = analysisChess.board();
+            for (let r=0;r<8;r++) {
+                for (let c=0;c<8;c++) {
+                    const sqId = String.fromCharCode(97+c)+(8-r);
+                    const piece = board[r][c];
+                    const sqDiv = document.createElement('div');
+                    sqDiv.className = `w-full h-full flex items-center justify-center relative cursor-pointer ${(r+c)%2===0 ? 'sq-light' : 'sq-dark'}`;
+                    sqDiv.dataset.square = sqId;
+                    if (c === 0) sqDiv.dataset.rankLabel = String(8 - r);
+                    if (r === 7) sqDiv.dataset.fileLabel = String.fromCharCode(97 + c);
+                    if (analysisSelectedSquare===sqId) sqDiv.classList.add('analysis-square-selected');
+                    if (analysisPossibleMoves.includes(sqId)) sqDiv.classList.add(piece ? 'analysis-square-capture' : 'analysis-square-legal');
+                    if (piece) {
+                        const img = document.createElement('img'); img.className='piece-img';
+                        img.alt=`${piece.color==='w'?'Trắng':'Đen'} ${piece.type}`; img.draggable=false; img.src=getPiecePngUrl(piece);
+                        img.onerror=function(){this.style.display='none';}; sqDiv.appendChild(img);
+                    }
+                    sqDiv.addEventListener('click',()=>handleAnalysisSquareClick(sqId));
+                    boardEl.appendChild(sqDiv);
+                }
+            }
+            drawBestMoveArrow();
+            updateAnalysisEvaluation();
+        };
+
+        function handleAnalysisSquareClick(square) {
+            if (!analysisSelectedSquare) {
+                const piece = analysisChess.get(square);
+                if (piece && piece.color===analysisChess.turn()) {
+                    analysisSelectedSquare=square;
+                    analysisPossibleMoves=analysisChess.moves({square,verbose:true}).map(m=>m.to);
+                    renderAnalysisBoard();
+                }
+                return;
+            }
+            if (analysisSelectedSquare===square) {
+                analysisSelectedSquare=null; analysisPossibleMoves=[]; renderAnalysisBoard(); return;
+            }
+            const move=analysisChess.move({from:analysisSelectedSquare,to:square,promotion:'q'});
+            if (move) {
+                analysisSelectedSquare=null; analysisPossibleMoves=[]; analysisLastResult=null; analysisRequestedFen='';
+                renderAnalysisBoard();
+            } else {
+                const piece=analysisChess.get(square);
+                if (piece && piece.color===analysisChess.turn()) {
+                    analysisSelectedSquare=square;
+                    analysisPossibleMoves=analysisChess.moves({square,verbose:true}).map(m=>m.to);
+                } else { analysisSelectedSquare=null; analysisPossibleMoves=[]; }
+                renderAnalysisBoard();
+            }
+        }
+
+        function updateAnalysisEvalBar(whiteEval) {
+            const val=Math.max(-10,Math.min(10,whiteEval));
+            const whitePct=50+val*5;
+            document.getElementById('analysis-eval-white').style.height=`${whitePct}%`;
+            document.getElementById('analysis-eval-black').style.height=`${100-whitePct}%`;
+        }
+
+        async function updateAnalysisEvaluation(force=false) {
+            const fen=analysisChess.fen();
+            if (!force && analysisRequestedFen===fen) return;
+            analysisRequestedFen=fen;
+            document.getElementById('analysis-engine-meta').textContent='Stockfish đang phân tích…';
+            document.getElementById('analysis-best-line').textContent='Đang tính biến tốt nhất…';
+            try {
+                const result=await analyzeFen(fen,13,3);
+                if (analysisChess.fen()!==fen) return;
+                if (!result || !result.lines || !result.lines.length || !result.bestmove || result.bestmove==='(none)') {
+                    throw new Error('Stockfish không trả về nước đi/biến chính cho vị trí này.');
+                }
+                analysisLastResult=result;
+                const line=primaryLine(result);
+                const whiteEval=scoreInWhitePerspective(fen,line);
+                updateAnalysisEvalBar(whiteEval);
+                document.getElementById('analysis-eval-badge').textContent=formatWhiteScore(fen,line);
+                document.getElementById('analysis-best-line').textContent=uciLineToSan(fen,line.pv,12);
+                document.getElementById('analysis-engine-meta').textContent=`Stockfish Online API · depth ${line.depth || result.depth} · 1 biến chính`;
+                const linesEl=document.getElementById('analysis-lines'); linesEl.innerHTML='';
+                result.lines.forEach((pv,index)=>{
+                    const row=document.createElement('div'); row.className='engine-line-row';
+                    const rank=document.createElement('span'); rank.className='line-rank'; rank.textContent=`${index+1}.`;
+                    const score=document.createElement('span'); score.className='line-score'; score.textContent=formatScore(pv);
+                    const text=document.createElement('span'); text.className='line-pv'; text.textContent=uciLineToSan(fen,pv.pv,12);
+                    row.append(rank,score,text); linesEl.appendChild(row);
+                });
+                drawBestMoveArrow();
+            } catch (error) {
+                if (analysisRequestedFen===fen) analysisRequestedFen='';
+                analysisLastResult=null;
+                const meta=document.getElementById('analysis-engine-meta');
+                const best=document.getElementById('analysis-best-line');
+                const lines=document.getElementById('analysis-lines');
+                if (meta) meta.textContent='Engine lỗi · bấm “Phân Tích / Thử Lại”';
+                if (best) best.textContent=(error && error.message) ? error.message : 'Không nhận được phân tích từ Stockfish.';
+                if (lines) lines.innerHTML='<div class="text-[11px] text-chess-textMuted">Kiểm tra Internet hoặc bấm trạng thái Stockfish để thử lại; API công cộng có thể đang bận.</div>';
+                drawBestMoveArrow();
+            }
+        }
+
+        function drawBestMoveArrow() {
+            const boardEl=document.getElementById('analysis-chessboard');
+            const old=boardEl.querySelector('svg.bestmove-arrow-layer');
+            if (old) old.remove();
+            if (!analysisLastResult || !analysisLastResult.bestmove || analysisLastResult.bestmove==='(none)') return;
+            const move=parseUciMove(analysisLastResult.bestmove);
+            if (!move) return;
+            const xy=sq=>({x:((sq.charCodeAt(0)-97)+0.5)*12.5,y:(8-Number(sq[1])+0.5)*12.5});
+            const a=xy(move.from),b=xy(move.to);
+            const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
+            svg.setAttribute('class','bestmove-arrow-layer'); svg.setAttribute('viewBox','0 0 100 100');
+            svg.style.cssText='position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible;z-index:15;';
+            svg.innerHTML=`<defs><marker id="best-arrow-head" markerWidth="5" markerHeight="5" refX="3.5" refY="2.5" orient="auto"><path d="M0,0 L5,2.5 L0,5 Z" fill="#81b64c" fill-opacity=".9"></path></marker></defs><line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" stroke="#81b64c" stroke-opacity=".78" stroke-width="1.6" stroke-linecap="round" marker-end="url(#best-arrow-head)"/>`;
+            boardEl.appendChild(svg);
+        }
+
+        function resetAnalysisBoard() {
+            analysisChess.reset(); analysisSelectedSquare=null; analysisPossibleMoves=[]; analysisLastResult=null; analysisRequestedFen='';
+            renderAnalysisBoard(); showToast('Đã đặt lại bàn phân tích.');
+        }
+
+        function copyFEN() {
+            const fen=analysisChess.fen();
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(fen).then(()=>showToast('Đã sao chép FEN!')).catch(()=>copyTextFallback(fen));
+            } else copyTextFallback(fen);
+        }
+        function copyTextFallback(text) {
+            const temp=document.createElement('textarea'); temp.value=text; document.body.appendChild(temp); temp.select();
+            try { document.execCommand('copy'); showToast('Đã sao chép FEN!'); } catch (_) { showToast('Không tự sao chép được; FEN: '+text); }
+            document.body.removeChild(temp);
+        }
+
+        // ================= TAB 4: SETTINGS & THEMES =================
+        function setBoardTheme(themeName) {
+            ['chessboard', 'review-chessboard', 'analysis-chessboard'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) {
+                    el.classList.remove('theme-green', 'theme-wood', 'theme-glass', 'theme-dark');
+                    el.classList.add(themeName);
+                }
+            });
+            showToast("Đã cập nhật chủ đề bàn cờ mới!");
+        }
+
+        document.addEventListener('keydown', function(event) {
+            if (event.target && ['INPUT','TEXTAREA'].includes(event.target.tagName)) return;
+            if (document.getElementById('view-review') && !document.getElementById('view-review').classList.contains('hidden')) {
+                if (event.key === 'ArrowLeft') reviewStep(-1);
+                if (event.key === 'ArrowRight') reviewStep(1);
+            }
+        });
+
+        // --- INIT APP ---
+        window.onload = function() {
+            renderPlayBoard();
+            updateBotElo(1500);
+            setEngineStatus('Stockfish Online API · chưa kiểm tra', 'loading', 'API sẽ được gọi khi bạn bấm Gợi ý, phân tích hoặc bấm vào trạng thái này để kiểm tra.');
+            document.getElementById('live-textbook-comment').textContent = 'Stockfish Online API sẽ phân tích khi bạn đi một nước hoặc bấm Gợi ý. Không cần tải WASM về GitHub Pages.';
+        };
+    </script>
 </body>
 </html>
