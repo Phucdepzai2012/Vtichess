@@ -150,7 +150,36 @@
         .analysis-square-selected { box-shadow: inset 0 0 0 4px rgba(255,255,51,.75); }
         .analysis-square-legal::after { content:''; position:absolute; width:25%; height:25%; border-radius:50%; background:rgba(0,0,0,.20); pointer-events:none; }
         .analysis-square-capture::after { content:''; position:absolute; inset:0; border:5px solid rgba(0,0,0,.20); border-radius:50%; box-sizing:border-box; pointer-events:none; }
-        .piece-img { object-fit:contain; display:block; }
+        .piece-img { object-fit:contain; display:block; max-width:100%; max-height:100%; }
+
+        /* Stable chessboard geometry: exactly 8 equal columns AND rows.
+           CSS aspect-ratio stops flex/grid parents from stretching the board. */
+        .board-frame { flex: 0 0 auto; min-width: 0; width: max-content; }
+        .chessboard-grid {
+            display: grid;
+            grid-template-columns: repeat(8, minmax(0, 1fr));
+            grid-template-rows: repeat(8, minmax(0, 1fr));
+            flex: 0 0 auto;
+            box-sizing: border-box;
+            aspect-ratio: 1 / 1;
+            height: auto;
+            max-width: 100%;
+            min-width: 0;
+            min-height: 0;
+            overflow: hidden;
+        }
+        .chessboard-play { width: min(560px, calc(100vw - 72px)); }
+        .chessboard-review { width: min(380px, calc(100vw - 72px)); }
+        .chessboard-analysis { width: min(540px, calc(100vw - 80px)); }
+        .chessboard-grid > div { min-width: 0; min-height: 0; width: 100%; height: 100%; aspect-ratio: 1 / 1; overflow: hidden; }
+        .eval-bar-stack { width: 16px; flex: 0 0 16px; align-self: stretch; min-height: 0; }
+        .eval-bar-stack > div { flex-shrink: 0; }
+        #chessboard, #review-chessboard, #analysis-chessboard { touch-action: manipulation; }
+        @media (max-width: 639px) {
+            .chessboard-play { width: min(560px, calc(100vw - 72px)); }
+            .chessboard-analysis { width: min(540px, calc(100vw - 80px)); }
+            .eval-bar-stack { width: 12px; flex-basis: 12px; }
+        }
         @media (max-width: 640px) { .engine-status { max-width:116px; overflow:hidden; } #engine-status-text { overflow:hidden; text-overflow:ellipsis; } }
 
         /* Chess.com-inspired button treatment */
@@ -242,19 +271,19 @@
         <div class="flex-1 overflow-y-auto relative p-2 lg:p-6">
 
             <!-- ================= TAB 1: PLAY VS BOT ================= -->
-            <section id="view-play" class="view-section max-w-7xl mx-auto flex flex-col lg:flex-row gap-6 items-center lg:items-start justify-center">
+            <section id="view-play" class="view-section max-w-7xl mx-auto flex flex-col 2xl:flex-row gap-6 items-center 2xl:items-start justify-center">
                 <!-- Left: Evaluation Bar & Chessboard -->
-                <div class="flex gap-2.5 items-stretch justify-center">
+                <div class="flex gap-2.5 items-stretch justify-center board-play-layout">
                     <!-- Real-time Evaluation Bar -->
-                    <div class="w-4 h-[380px] sm:h-[480px] lg:h-[560px] bg-zinc-900 rounded-md overflow-hidden flex flex-col border border-chess-border relative shadow-inner">
+                    <div class="eval-bar-stack bg-zinc-900 rounded-md overflow-hidden flex flex-col border border-chess-border relative shadow-inner">
                         <div id="eval-bar-black" class="bg-zinc-800 w-full transition-all duration-300" style="height: 50%;"></div>
                         <div id="eval-bar-white" class="bg-zinc-100 w-full transition-all duration-300" style="height: 50%;"></div>
                         <span id="eval-score-text" class="absolute inset-x-0 top-1/2 -translate-y-1/2 text-[10px] font-black text-center text-black bg-white/90 py-0.5 shadow">0.0</span>
                     </div>
 
                     <!-- Main Chessboard Component -->
-                    <div class="relative shadow-2xl rounded-lg overflow-hidden border-4 border-chess-card">
-                        <div id="chessboard" class="grid grid-cols-8 w-[380px] h-[380px] sm:w-[480px] sm:h-[480px] lg:w-[560px] lg:h-[560px] select-none theme-green"></div>
+                    <div class="board-frame relative shadow-2xl rounded-lg overflow-hidden border-4 border-chess-card">
+                        <div id="chessboard" class="chessboard-grid chessboard-play select-none theme-green"></div>
                         
                         <!-- Promotion Modal -->
                         <div id="promotion-modal" class="hidden absolute inset-0 bg-black/75 backdrop-blur-sm flex items-center justify-center z-50">
@@ -269,7 +298,7 @@
                 </div>
 
                 <!-- Right: Controls & Live Textbook Commentary -->
-                <div class="w-full lg:w-[420px] flex flex-col gap-3 h-[560px] bg-chess-card rounded-2xl border border-chess-border p-4 shadow-2xl">
+                <div class="w-full 2xl:w-[420px] flex flex-col gap-3 min-h-[560px] bg-chess-card rounded-2xl border border-chess-border p-4 shadow-2xl">
                     <!-- Bot Header & Status -->
                     <div class="flex items-center justify-between pb-3 border-b border-chess-border">
                         <div class="flex items-center gap-3">
@@ -417,8 +446,8 @@
 
                             <!-- Review Board & Commentary -->
                             <div class="flex flex-col md:flex-row gap-6 items-center">
-                                <div class="relative shadow-2xl rounded-lg overflow-hidden border-2 border-chess-border shrink-0">
-                                    <div id="review-chessboard" class="grid grid-cols-8 w-[320px] h-[320px] sm:w-[380px] sm:h-[380px] select-none theme-green"></div>
+                                <div class="board-frame relative shadow-2xl rounded-lg overflow-hidden border-2 border-chess-border shrink-0">
+                                    <div id="review-chessboard" class="chessboard-grid chessboard-review select-none theme-green"></div>
                                 </div>
 
                                 <div class="flex-1 flex flex-col gap-3 w-full">
@@ -466,17 +495,17 @@
             </section>
 
             <!-- ================= TAB 3: ANALYSIS BOARD ================= -->
-            <section id="view-analysis" class="view-section hidden max-w-6xl mx-auto flex flex-col lg:flex-row gap-6 items-center justify-center">
-                <div class="flex gap-3 items-center justify-center">
-                    <div class="w-4 h-[480px] lg:h-[540px] bg-zinc-900 rounded-md overflow-hidden flex flex-col border border-chess-border relative shadow-inner">
+            <section id="view-analysis" class="view-section hidden max-w-6xl mx-auto flex flex-col 2xl:flex-row gap-6 items-center justify-center">
+                <div class="flex gap-3 items-stretch justify-center board-analysis-layout">
+                    <div class="eval-bar-stack bg-zinc-900 rounded-md overflow-hidden flex flex-col border border-chess-border relative shadow-inner">
                         <div id="analysis-eval-black" class="bg-zinc-800 w-full" style="height: 50%;"></div>
                         <div id="analysis-eval-white" class="bg-zinc-100 w-full" style="height: 50%;"></div>
                     </div>
-                    <div class="relative shadow-2xl rounded-lg overflow-hidden border-4 border-chess-card">
-                        <div id="analysis-chessboard" class="grid grid-cols-8 w-[380px] h-[380px] sm:w-[480px] sm:h-[480px] lg:w-[540px] lg:h-[540px] select-none theme-green"></div>
+                    <div class="board-frame relative shadow-2xl rounded-lg overflow-hidden border-4 border-chess-card">
+                        <div id="analysis-chessboard" class="chessboard-grid chessboard-analysis select-none theme-green"></div>
                     </div>
                 </div>
-                <div class="w-full lg:w-96 bg-chess-card rounded-2xl border border-chess-border p-5 flex flex-col gap-4 shadow-2xl">
+                <div class="w-full 2xl:w-96 bg-chess-card rounded-2xl border border-chess-border p-5 flex flex-col gap-4 shadow-2xl">
                     <h3 class="font-extrabold text-chess-textLight text-base flex items-center gap-2">
                         <i class="fa-solid fa-microchip text-amber-400"></i> Bàn Phân Tích Stockfish
                     </h3>
@@ -493,6 +522,7 @@
                         <div id="analysis-lines" class="engine-lines"><div class="text-[11px] text-chess-textMuted">Các biến phân tích sẽ xuất hiện tại đây.</div></div>
                     </div>
                     <div class="flex flex-col gap-2">
+                        <button onclick="updateAnalysisEvaluation(true)" class="w-full py-2.5 btn-chess-green text-white font-extrabold rounded-xl text-xs transition border border-chess-border"><i class="fa-solid fa-rotate mr-1"></i> Phân Tích / Thử Lại</button>
                         <button onclick="resetAnalysisBoard()" class="w-full py-2.5 bg-chess-panel hover:bg-chess-hover text-chess-textLight font-extrabold rounded-xl text-xs transition border border-chess-border">Đặt Lại Bàn Cờ</button>
                         <button onclick="copyFEN()" class="w-full py-2.5 bg-chess-panel hover:bg-chess-hover text-chess-textLight font-extrabold rounded-xl text-xs transition border border-chess-border">Sao Chép Chuỗi FEN</button>
                     </div>
@@ -672,8 +702,31 @@
             }
         }
 
+        function failStockfish(error, label='Lỗi tải Stockfish') {
+            const failure = error instanceof Error ? error : new Error(String(error || 'Stockfish không phản hồi.'));
+            clearTimeout(engineInitTimer);
+            engineInitTimer = null;
+            const rejectInit = stockfishInitReject;
+            const active = activeEngineJob;
+            if (active && active.timeout) clearTimeout(active.timeout);
+            const queued = stockfishQueue.splice(0);
+            activeEngineJob = null;
+            stockfishReady = false;
+            stockfishInitPromise = null;
+            stockfishInitResolve = null;
+            stockfishInitReject = null;
+            if (stockfishWorker) {
+                try { stockfishWorker.terminate(); } catch (_) {}
+                stockfishWorker = null;
+            }
+            setEngineStatus(label, 'error');
+            if (rejectInit) rejectInit(failure);
+            if (active && typeof active.reject === 'function') active.reject(failure);
+            queued.forEach(job => { try { job.reject(failure); } catch (_) {} });
+        }
+
         function initStockfish() {
-            if (stockfishReady) return Promise.resolve();
+            if (stockfishReady && stockfishWorker) return Promise.resolve();
             if (stockfishInitPromise) return stockfishInitPromise;
             setEngineStatus('Đang tải Stockfish…', 'loading');
             stockfishInitPromise = new Promise((resolve, reject) => {
@@ -694,34 +747,26 @@
                     stockfishWorker = new Worker(blobUrl);
                     stockfishWorker.onmessage = function(event) {
                         const raw = event && event.data !== undefined ? event.data : '';
-                        const lines = String(raw).split(/\r?\n/);
-                        lines.forEach(handleStockfishLine);
+                        String(raw).split(/\r?\n/).forEach(handleStockfishLine);
                     };
                     stockfishWorker.onerror = function(event) {
-                        const error = new Error('Không tải được Stockfish WebAssembly. Hãy kiểm tra kết nối hoặc mở trang qua localhost/HTTPS.');
-                        setEngineStatus('Lỗi tải engine', 'error');
-                        if (!stockfishReady && stockfishInitReject) stockfishInitReject(error);
-                        if (activeEngineJob) {
-                            activeEngineJob.reject(error);
-                            activeEngineJob = null;
-                        }
-                        stockfishQueue.splice(0).forEach(job => job.reject(error));
+                        const detail = event && event.message ? ` (${event.message})` : '';
+                        failStockfish(new Error('Không tải được Stockfish WebAssembly' + detail + '. Kiểm tra kết nối/CDN và mở trang qua localhost hoặc HTTPS.'), 'Lỗi tải engine');
                     };
-                    // Revoke only after a little delay; the worker may still be resolving its initial script.
                     setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
                     engineInitTimer = setTimeout(() => {
-                        if (!stockfishReady && stockfishInitReject) {
-                            const error = new Error('Stockfish không phản hồi khi khởi tạo.');
-                            setEngineStatus('Engine chưa sẵn sàng', 'error');
-                            stockfishInitReject(error);
-                            stockfishInitPromise = null;
-                        }
-                    }, 35000);
+                        if (!stockfishReady) failStockfish(new Error('Stockfish không phản hồi khi khởi tạo.'), 'Engine hết thời gian chờ');
+                    }, 30000);
                     stockfishWorker.postMessage('uci');
                 } catch (error) {
                     setEngineStatus('Không tạo được engine', 'error');
+                    stockfishReady = false;
+                    stockfishWorker = null;
+                    stockfishInitResolve = null;
+                    stockfishInitReject = null;
                     reject(error);
-                    stockfishInitPromise = null;
+                    // Defer clearing until after the Promise constructor has returned.
+                    setTimeout(() => { if (!stockfishReady) stockfishInitPromise = null; }, 0);
                 }
             });
             return stockfishInitPromise;
@@ -731,7 +776,6 @@
             line = String(line || '').trim();
             if (!line) return;
             if (line === 'uciok') {
-                try { stockfishWorker.postMessage('setoption name Threads value 1'); } catch (_) {}
                 stockfishWorker.postMessage('isready');
                 return;
             }
@@ -760,6 +804,7 @@
             }
             if (line.startsWith('bestmove ') && activeEngineJob) {
                 const job = activeEngineJob;
+                clearTimeout(job.timeout);
                 const match = line.match(/^bestmove\s+(\S+)/);
                 const result = {
                     bestmove: match ? match[1] : '(none)',
@@ -792,8 +837,12 @@
             const job = stockfishQueue.shift();
             activeEngineJob = job;
             job.lines = {};
+            job.timeout = setTimeout(() => {
+                if (activeEngineJob === job) {
+                    failStockfish(new Error('Stockfish không trả về bestmove trong 45 giây.'), 'Engine bị treo');
+                }
+            }, 45000);
             try {
-                stockfishWorker.postMessage('stop');
                 stockfishWorker.postMessage('ucinewgame');
                 stockfishWorker.postMessage('setoption name MultiPV value ' + Math.max(1, Math.min(3, job.multiPV || 1)));
                 // Every analysis resets strength options so a low-strength bot setting cannot weaken reviews.
@@ -812,6 +861,7 @@
                 stockfishWorker.postMessage('position fen ' + job.fen);
                 stockfishWorker.postMessage('go depth ' + job.depth);
             } catch (error) {
+                clearTimeout(job.timeout);
                 activeEngineJob = null;
                 job.reject(error);
                 processEngineQueue();
@@ -1493,9 +1543,13 @@
             if (!force && analysisRequestedFen===fen) return;
             analysisRequestedFen=fen;
             document.getElementById('analysis-engine-meta').textContent='Stockfish đang phân tích…';
+            document.getElementById('analysis-best-line').textContent='Đang tính biến tốt nhất…';
             try {
                 const result=await analyzeFen(fen,13,3);
                 if (analysisChess.fen()!==fen) return;
+                if (!result || !result.lines || !result.lines.length || !result.bestmove || result.bestmove==='(none)') {
+                    throw new Error('Stockfish không trả về nước đi/biến chính cho vị trí này.');
+                }
                 analysisLastResult=result;
                 const line=primaryLine(result);
                 const whiteEval=scoreInWhitePerspective(fen,line);
@@ -1513,8 +1567,15 @@
                 });
                 drawBestMoveArrow();
             } catch (error) {
-                document.getElementById('analysis-engine-meta').textContent='Engine chưa sẵn sàng · kiểm tra mạng/CDN';
-                document.getElementById('analysis-best-line').textContent='Không nhận được biến từ Stockfish.';
+                if (analysisRequestedFen===fen) analysisRequestedFen='';
+                analysisLastResult=null;
+                const meta=document.getElementById('analysis-engine-meta');
+                const best=document.getElementById('analysis-best-line');
+                const lines=document.getElementById('analysis-lines');
+                if (meta) meta.textContent='Engine lỗi · bấm “Phân Tích / Thử Lại”';
+                if (best) best.textContent=(error && error.message) ? error.message : 'Không nhận được phân tích từ Stockfish.';
+                if (lines) lines.innerHTML='<div class="text-[11px] text-chess-textMuted">Kiểm tra Internet hoặc thử mở trang bằng localhost/HTTPS rồi bấm thử lại.</div>';
+                drawBestMoveArrow();
             }
         }
 
