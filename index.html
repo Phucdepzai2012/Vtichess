@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chess.com Pro - Luyện Tập & Phân Tích Cờ Vua</title>
+    <title>Chess Lab Pro - Stockfish Analysis</title>
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -135,7 +135,25 @@
             pointer-events: none;
         }
 
-        /* Chess.com Button Glow Effect */
+        .engine-status { display:inline-flex; align-items:center; gap:7px; max-width:230px; padding:5px 9px; border:1px solid #383531; border-radius:999px; background:#21201d; color:#bab4ab; font-size:10px; font-weight:800; white-space:nowrap; }
+        .engine-status-dot { width:7px; height:7px; display:inline-block; border-radius:50%; background:#e8b94f; flex:0 0 auto; }
+        .engine-status.ready .engine-status-dot { background:#81b64c; box-shadow:0 0 0 3px rgba(129,182,76,.12); }
+        .engine-status.error .engine-status-dot { background:#fa412d; }
+        .engine-lines { display:flex; flex-direction:column; gap:6px; margin-top:9px; }
+        .engine-line-row { display:grid; grid-template-columns:22px 48px 1fr; gap:7px; align-items:start; padding:7px 8px; border-radius:8px; background:#1b1a18; border:1px solid #383531; font-size:11px; }
+        .engine-line-row .line-rank { color:#81b64c; font-weight:900; }
+        .engine-line-row .line-score { color:#f0d9b5; font-weight:900; white-space:nowrap; }
+        .engine-line-row .line-pv { color:#d6d3d1; line-height:1.45; overflow-wrap:anywhere; }
+        .eval-graph-wrap { background:#21201d; border:1px solid #383531; border-radius:12px; padding:10px; }
+        #review-eval-graph { width:100%; height:132px; display:block; }
+        .review-stat { display:inline-flex; align-items:center; gap:4px; padding:4px 7px; border-radius:6px; background:#1b1a18; font-size:10px; font-weight:900; }
+        .analysis-square-selected { box-shadow: inset 0 0 0 4px rgba(255,255,51,.75); }
+        .analysis-square-legal::after { content:''; position:absolute; width:25%; height:25%; border-radius:50%; background:rgba(0,0,0,.20); pointer-events:none; }
+        .analysis-square-capture::after { content:''; position:absolute; inset:0; border:5px solid rgba(0,0,0,.20); border-radius:50%; box-sizing:border-box; pointer-events:none; }
+        .piece-img { object-fit:contain; display:block; }
+        @media (max-width: 640px) { .engine-status { max-width:116px; overflow:hidden; } #engine-status-text { overflow:hidden; text-overflow:ellipsis; } }
+
+        /* Chess.com-inspired button treatment */
         .btn-chess-green {
             background-color: #81b64c;
             box-shadow: 0 4px 0 #457524;
@@ -161,8 +179,8 @@
                     <i class="fa-solid fa-chess-knight"></i>
                 </div>
                 <div class="hidden lg:block">
-                    <h1 class="font-extrabold text-chess-textLight text-xl leading-none tracking-wide">Chess.com</h1>
-                    <span class="text-xs text-chess-green font-bold tracking-wider">PRO ANALYZER</span>
+                    <h1 class="font-extrabold text-chess-textLight text-xl leading-none tracking-wide">Chess Lab</h1>
+                    <span class="text-xs text-chess-green font-bold tracking-wider">STOCKFISH ANALYZER</span>
                 </div>
             </div>
 
@@ -204,10 +222,11 @@
         
         <!-- TOP NAVBAR HEADER -->
         <header class="h-14 border-b border-chess-border bg-chess-card px-4 lg:px-6 flex items-center justify-between shrink-0">
-            <div class="flex items-center gap-3">
+            <div class="flex items-center gap-3 min-w-0">
                 <span id="current-mode-title" class="text-base font-extrabold text-chess-textLight flex items-center gap-2">
                     <i class="fa-solid fa-robot text-chess-green"></i> Đấu Cờ Với Stockfish Bot
                 </span>
+                <span id="engine-status" class="engine-status" title="Stockfish chạy trong trình duyệt qua WebAssembly"><span class="engine-status-dot"></span><span id="engine-status-text">Đang khởi tạo Stockfish…</span></span>
             </div>
             <div class="flex items-center gap-2">
                 <button onclick="toggleAudio()" id="sound-btn" class="px-3 py-1.5 rounded-lg bg-chess-panel hover:bg-chess-hover text-chess-textLight text-xs font-bold transition flex items-center gap-2 border border-chess-border">
@@ -259,7 +278,7 @@
                             </div>
                             <div>
                                 <h3 id="bot-name-display" class="font-extrabold text-chess-textLight text-base">Stockfish Bot</h3>
-                                <p class="text-xs text-chess-green font-bold" id="bot-elo-badge">Elo: 1500 (Kiện tướng)</p>
+                                <p class="text-xs text-chess-green font-bold" id="bot-elo-badge">Cấp độ: 1500</p>
                             </div>
                         </div>
                         <div id="bot-thinking" class="hidden text-xs text-amber-400 font-bold animate-pulse flex items-center gap-1.5 bg-amber-950/40 px-3 py-1 rounded-lg border border-amber-800/50">
@@ -270,7 +289,7 @@
                     <!-- Elo Strength Slider -->
                     <div class="bg-chess-panel p-3 rounded-xl border border-chess-border flex flex-col gap-2">
                         <div class="flex justify-between items-center text-xs font-bold">
-                            <span class="text-chess-textLight">Cấp độ Elo Bot (1 - 10,000)</span>
+                            <span class="text-chess-textLight">Cấp độ Bot (1 - 10,000)</span>
                             <span id="elo-value-label" class="text-chess-green text-sm font-black">1500</span>
                         </div>
                         <input type="range" id="bot-elo-slider" min="1" max="10000" value="1500" class="w-full accent-[#81b64c] cursor-pointer" oninput="updateBotElo(this.value)">
@@ -420,16 +439,24 @@
                                         </div>
                                     </div>
 
-                                    <!-- Accuracy Scorecards -->
+                                    <!-- Accuracy Scorecards are populated only after engine review -->
                                     <div class="grid grid-cols-2 gap-3">
                                         <div class="bg-chess-panel p-3 rounded-xl border border-chess-border text-center">
-                                            <p class="text-[10px] font-bold text-chess-textMuted uppercase">Độ Chính Xác Trắng</p>
-                                            <p id="white-accuracy-score" class="text-2xl font-black text-chess-green mt-0.5">94.8%</p>
+                                            <p class="text-[10px] font-bold text-chess-textMuted uppercase">Độ chính xác Trắng (ước tính)</p>
+                                            <p id="white-accuracy-score" class="text-2xl font-black text-chess-green mt-0.5">—</p>
                                         </div>
                                         <div class="bg-chess-panel p-3 rounded-xl border border-chess-border text-center">
-                                            <p class="text-[10px] font-bold text-chess-textMuted uppercase">Độ Chính Xác Đen</p>
-                                            <p id="black-accuracy-score" class="text-2xl font-black text-blue-400 mt-0.5">91.2%</p>
+                                            <p class="text-[10px] font-bold text-chess-textMuted uppercase">Độ chính xác Đen (ước tính)</p>
+                                            <p id="black-accuracy-score" class="text-2xl font-black text-blue-400 mt-0.5">—</p>
                                         </div>
+                                    </div>
+                                    <div class="eval-graph-wrap">
+                                        <div class="flex items-center justify-between mb-2 gap-2">
+                                            <span class="text-[10px] uppercase tracking-wider font-extrabold text-chess-textMuted">Biểu đồ lợi thế · Trắng (+) / Đen (−)</span>
+                                            <span id="review-analysis-progress" class="text-[10px] text-chess-green font-black">Chưa phân tích</span>
+                                        </div>
+                                        <canvas id="review-eval-graph" width="900" height="150" aria-label="Biểu đồ đánh giá engine"></canvas>
+                                        <div id="review-classification-summary" class="flex flex-wrap gap-1.5 mt-2"></div>
                                     </div>
                                 </div>
                             </div>
@@ -456,12 +483,14 @@
                     <p class="text-xs text-chess-textMuted font-semibold">Tự do xếp cờ, thử nghiệm các biến thế mở màn và xem nước đi đề xuất tốt nhất từ engine.</p>
                     <div class="bg-chess-panel p-4 rounded-xl border border-chess-border flex flex-col gap-2">
                         <div class="flex justify-between text-xs font-extrabold">
-                            <span class="text-chess-textMuted">Đánh giá Stockfish 19:</span>
+                            <span class="text-chess-textMuted">Đánh giá Stockfish:</span>
                             <span id="analysis-eval-badge" class="text-chess-green">+0.32</span>
                         </div>
                         <div class="text-xs text-chess-textMuted font-semibold">
-                            <span class="font-extrabold text-chess-textLight">Biến tốt nhất:</span> <span id="analysis-best-line" class="text-chess-green">1. e4 e5 2. Nf3 Nc6</span>
+                            <span class="font-extrabold text-chess-textLight">Biến tốt nhất:</span> <span id="analysis-best-line" class="text-chess-green">Đang chờ Stockfish phân tích…</span>
                         </div>
+                        <div id="analysis-engine-meta" class="text-[10px] text-chess-textMuted font-bold">Engine: Stockfish 19 Lite · WebAssembly</div>
+                        <div id="analysis-lines" class="engine-lines"><div class="text-[11px] text-chess-textMuted">Các biến phân tích sẽ xuất hiện tại đây.</div></div>
                     </div>
                     <div class="flex flex-col gap-2">
                         <button onclick="resetAnalysisBoard()" class="w-full py-2.5 bg-chess-panel hover:bg-chess-hover text-chess-textLight font-extrabold rounded-xl text-xs transition border border-chess-border">Đặt Lại Bàn Cờ</button>
@@ -600,15 +629,15 @@
             if (tabId === 'analysis' && window.renderAnalysisBoard) window.renderAnalysisBoard();
         }
 
-        // --- HIGH QUALITY CHESS PIECE SVG VECTOR MAPPER ---
-        function getPieceSvgUrl(pieceObj) {
+        // Bộ quân cờ PNG Neo: dùng ảnh quân thật thay vì emoji/ký tự.
+        function getPiecePngUrl(pieceObj) {
             if (!pieceObj) return '';
             const c = pieceObj.color === 'w' ? 'w' : 'b';
             const t = pieceObj.type.toUpperCase();
             return `https://images.chesscomfiles.com/chess-themes/pieces/neo/150/${c}${t.toLowerCase()}.png`;
         }
 
-        // ================= TAB 1: PLAY VS BOT ENGINE =================
+        // ================= TAB 1: PLAY VS BOT + REAL STOCKFISH UCI =================
         let game = new Chess();
         let selectedSquare = null;
         let possibleMoves = [];
@@ -617,296 +646,482 @@
         let pendingPromotion = null;
         let lastMoveBadgeSquare = null;
         let lastMoveBadgeInfo = null;
+        let latestPlayEvalWhite = 0;
+        let botMoveInProgress = false;
 
-        function updateBotElo(val) {
-            botElo = parseInt(val);
-            document.getElementById('elo-value-label').innerText = botElo;
-            let rankText = "Tập chơi";
-            if (botElo >= 1000) rankText = "Trung bình";
-            if (botElo >= 1800) rankText = "Kiện tướng";
-            if (botElo >= 3000) rankText = "Đại kiện tướng";
-            if (botElo >= 8000) rankText = "Stockfish Thần";
-            document.getElementById('bot-elo-badge').innerText = `Elo: ${botElo} (${rankText})`;
+        // Stockfish.js 19 Lite single-threaded WASM: no COOP/COEP headers required.
+        // The CDN JS and matching WASM are loaded inside a Blob worker to work on normal HTTPS hosts.
+        const STOCKFISH_VERSION = '19.0.1';
+        const STOCKFISH_BASE = `https://cdn.jsdelivr.net/npm/stockfish@${STOCKFISH_VERSION}/bin/`;
+        let stockfishWorker = null;
+        let stockfishReady = false;
+        let stockfishInitPromise = null;
+        let stockfishInitResolve = null;
+        let stockfishInitReject = null;
+        let stockfishQueue = [];
+        let activeEngineJob = null;
+        let engineInitTimer = null;
+
+        function setEngineStatus(text, state='loading') {
+            const pill = document.getElementById('engine-status');
+            const label = document.getElementById('engine-status-text');
+            if (label) label.textContent = text;
+            if (pill) {
+                pill.classList.toggle('ready', state === 'ready');
+                pill.classList.toggle('error', state === 'error');
+            }
         }
 
-        // HEURISTIC EVALUATION TABLES
-        const pawnTable = [0,0,0,0,0,0,0,0, 50,50,50,50,50,50,50,50, 10,10,20,30,30,20,10,10, 5,5,10,25,25,10,5,5, 0,0,0,20,20,0,0,0, 5,-5,-10,0,0,-10,-5,5, 5,10,10,-20,-20,10,10,5, 0,0,0,0,0,0,0,0];
-        const knightTable = [-50,-40,-30,-30,-30,-30,-40,-50,-40,-20,0,0,0,0,-20,-40,-30,0,10,15,15,10,0,-30,-30,5,15,20,20,15,5,-30,-30,0,15,20,20,15,0,-30,-30,5,10,15,15,10,5,-30,-40,-20,0,5,5,0,-20,-40,-50,-40,-30,-30,-30,-30,-40,-50];
+        function initStockfish() {
+            if (stockfishReady) return Promise.resolve();
+            if (stockfishInitPromise) return stockfishInitPromise;
+            setEngineStatus('Đang tải Stockfish…', 'loading');
+            stockfishInitPromise = new Promise((resolve, reject) => {
+                stockfishInitResolve = resolve;
+                stockfishInitReject = reject;
+                try {
+                    const jsUrl = `${STOCKFISH_BASE}stockfish-19-lite-single.js`;
+                    const wasmUrl = `${STOCKFISH_BASE}stockfish-19-lite-single.wasm`;
+                    const workerSource = `
+                        self.Module = self.Module || {};
+                        self.Module.locateFile = function(path) {
+                            if (path && path.endsWith('.wasm')) return ${JSON.stringify(wasmUrl)};
+                            return ${JSON.stringify(STOCKFISH_BASE)} + path;
+                        };
+                        importScripts(${JSON.stringify(jsUrl)});
+                    `;
+                    const blobUrl = URL.createObjectURL(new Blob([workerSource], {type:'text/javascript'}));
+                    stockfishWorker = new Worker(blobUrl);
+                    stockfishWorker.onmessage = function(event) {
+                        const raw = event && event.data !== undefined ? event.data : '';
+                        const lines = String(raw).split(/\r?\n/);
+                        lines.forEach(handleStockfishLine);
+                    };
+                    stockfishWorker.onerror = function(event) {
+                        const error = new Error('Không tải được Stockfish WebAssembly. Hãy kiểm tra kết nối hoặc mở trang qua localhost/HTTPS.');
+                        setEngineStatus('Lỗi tải engine', 'error');
+                        if (!stockfishReady && stockfishInitReject) stockfishInitReject(error);
+                        if (activeEngineJob) {
+                            activeEngineJob.reject(error);
+                            activeEngineJob = null;
+                        }
+                        stockfishQueue.splice(0).forEach(job => job.reject(error));
+                    };
+                    // Revoke only after a little delay; the worker may still be resolving its initial script.
+                    setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
+                    engineInitTimer = setTimeout(() => {
+                        if (!stockfishReady && stockfishInitReject) {
+                            const error = new Error('Stockfish không phản hồi khi khởi tạo.');
+                            setEngineStatus('Engine chưa sẵn sàng', 'error');
+                            stockfishInitReject(error);
+                            stockfishInitPromise = null;
+                        }
+                    }, 35000);
+                    stockfishWorker.postMessage('uci');
+                } catch (error) {
+                    setEngineStatus('Không tạo được engine', 'error');
+                    reject(error);
+                    stockfishInitPromise = null;
+                }
+            });
+            return stockfishInitPromise;
+        }
 
-        function evaluatePosition(board) {
-            let total = 0;
-            for (let r = 0; r < 8; r++) {
-                for (let c = 0; c < 8; c++) {
-                    const piece = board[r][c];
-                    if (piece) {
-                        let val = 0;
-                        const idx = r * 8 + c;
-                        if (piece.type === 'p') val = 100 + pawnTable[idx];
-                        else if (piece.type === 'n') val = 320 + knightTable[idx];
-                        else if (piece.type === 'b') val = 330;
-                        else if (piece.type === 'r') val = 500;
-                        else if (piece.type === 'q') val = 900;
-                        else if (piece.type === 'k') val = 20000;
-                        total += piece.color === 'w' ? val : -val;
+        function handleStockfishLine(line) {
+            line = String(line || '').trim();
+            if (!line) return;
+            if (line === 'uciok') {
+                try { stockfishWorker.postMessage('setoption name Threads value 1'); } catch (_) {}
+                stockfishWorker.postMessage('isready');
+                return;
+            }
+            if (line === 'readyok' && !stockfishReady) {
+                stockfishReady = true;
+                clearTimeout(engineInitTimer);
+                setEngineStatus('Stockfish 19 Lite sẵn sàng', 'ready');
+                if (stockfishInitResolve) stockfishInitResolve();
+                stockfishInitResolve = null;
+                stockfishInitReject = null;
+                processEngineQueue();
+                return;
+            }
+            if (line.startsWith('info ') && activeEngineJob) {
+                const parsed = parseStockfishInfo(line);
+                if (parsed) {
+                    const old = activeEngineJob.lines[parsed.multipv];
+                    if (!old || parsed.depth >= old.depth) {
+                        activeEngineJob.lines[parsed.multipv] = parsed;
+                        if (activeEngineJob.onInfo) {
+                            try { activeEngineJob.onInfo(parsed, activeEngineJob); } catch (_) {}
+                        }
                     }
                 }
+                return;
             }
-            return total;
-        }
-
-        function minimax(gameInst, depth, alpha, beta, isMax) {
-            if (depth === 0 || gameInst.game_over()) return evaluatePosition(gameInst.board());
-            const moves = gameInst.moves({verbose: true});
-            if (isMax) {
-                let maxEval = -Infinity;
-                for (let m of moves) {
-                    gameInst.move(m);
-                    let evalVal = minimax(gameInst, depth - 1, alpha, beta, false);
-                    gameInst.undo();
-                    maxEval = Math.max(maxEval, evalVal);
-                    alpha = Math.max(alpha, evalVal);
-                    if (beta <= alpha) break;
-                }
-                return maxEval;
-            } else {
-                let minEval = Infinity;
-                for (let m of moves) {
-                    gameInst.move(m);
-                    let evalVal = minimax(gameInst, depth - 1, alpha, beta, true);
-                    gameInst.undo();
-                    minEval = Math.min(minEval, evalVal);
-                    beta = Math.min(beta, evalVal);
-                    if (beta <= alpha) break;
-                }
-                return minEval;
+            if (line.startsWith('bestmove ') && activeEngineJob) {
+                const job = activeEngineJob;
+                const match = line.match(/^bestmove\s+(\S+)/);
+                const result = {
+                    bestmove: match ? match[1] : '(none)',
+                    lines: Object.values(job.lines).sort((a,b) => a.multipv - b.multipv),
+                    fen: job.fen,
+                    depth: job.depth
+                };
+                activeEngineJob = null;
+                job.resolve(result);
+                processEngineQueue();
             }
         }
 
-        function getBotMove() {
-            const moves = game.moves({verbose: true});
-            if (moves.length === 0) return null;
+        function parseStockfishInfo(line) {
+            if (!/\bdepth\s+\d+/.test(line) || !/\bscore\s+(cp|mate)\s+-?\d+/.test(line)) return null;
+            const depth = Number((line.match(/\bdepth\s+(\d+)/) || [])[1] || 0);
+            const multiPV = Number((line.match(/\bmultipv\s+(\d+)/) || [])[1] || 1);
+            const scoreMatch = line.match(/\bscore\s+(cp|mate)\s+(-?\d+)/);
+            const pvMatch = line.match(/\bpv\s+(.+)$/);
+            const scoreType = scoreMatch ? scoreMatch[1] : 'cp';
+            const rawScore = scoreMatch ? Number(scoreMatch[2]) : 0;
+            const cpEquivalent = scoreType === 'mate'
+                ? Math.sign(rawScore || 1) * (10000 - Math.min(99, Math.abs(rawScore)) * 100)
+                : rawScore;
+            return {depth, multipv:multiPV, scoreType, rawScore, cpEquivalent, scorePawns:cpEquivalent / 100, pv:pvMatch ? pvMatch[1].trim() : ''};
+        }
 
-            if (botElo < 500 && Math.random() < 0.6) {
-                return moves[Math.floor(Math.random() * moves.length)];
-            }
-
-            let depth = 1;
-            if (botElo >= 1200) depth = 2;
-            if (botElo >= 2500) depth = 3;
-            if (botElo >= 6000) depth = 4;
-
-            let bestMove = null;
-            let bestVal = game.turn() === 'w' ? -Infinity : Infinity;
-            const isMax = game.turn() === 'w';
-
-            moves.sort(() => Math.random() - 0.5);
-
-            for (let m of moves) {
-                game.move(m);
-                let val = minimax(game, depth - 1, -Infinity, Infinity, !isMax);
-                game.undo();
-
-                if (isMax) {
-                    if (val > bestVal) { bestVal = val; bestMove = m; }
-                } else {
-                    if (val < bestVal) { bestVal = val; bestMove = m; }
+        function processEngineQueue() {
+            if (!stockfishReady || activeEngineJob || !stockfishQueue.length || !stockfishWorker) return;
+            const job = stockfishQueue.shift();
+            activeEngineJob = job;
+            job.lines = {};
+            try {
+                stockfishWorker.postMessage('stop');
+                stockfishWorker.postMessage('ucinewgame');
+                stockfishWorker.postMessage('setoption name MultiPV value ' + Math.max(1, Math.min(3, job.multiPV || 1)));
+                // Every analysis resets strength options so a low-strength bot setting cannot weaken reviews.
+                stockfishWorker.postMessage('setoption name UCI_LimitStrength value false');
+                stockfishWorker.postMessage('setoption name Skill Level value 20');
+                if (job.botLevel != null) {
+                    const level = Number(job.botLevel);
+                    if (level >= 1320 && level <= 3190) {
+                        stockfishWorker.postMessage('setoption name UCI_LimitStrength value true');
+                        stockfishWorker.postMessage('setoption name UCI_Elo value ' + Math.round(level));
+                    } else if (level < 1320) {
+                        const skill = Math.max(0, Math.min(20, Math.round(20 * Math.log1p(Math.max(0, level)) / Math.log1p(10000))));
+                        stockfishWorker.postMessage('setoption name Skill Level value ' + skill);
+                    }
                 }
+                stockfishWorker.postMessage('position fen ' + job.fen);
+                stockfishWorker.postMessage('go depth ' + job.depth);
+            } catch (error) {
+                activeEngineJob = null;
+                job.reject(error);
+                processEngineQueue();
             }
-            return bestMove || moves[0];
+        }
+
+        function analyzeFen(fen, depth=12, multiPV=1, options={}) {
+            return initStockfish().then(() => new Promise((resolve, reject) => {
+                stockfishQueue.push({fen, depth, multiPV, botLevel: options.botLevel == null ? null : options.botLevel,
+                    onInfo:options.onInfo || null, resolve, reject, lines:{}});
+                processEngineQueue();
+            }));
+        }
+
+        function primaryLine(result) {
+            if (!result || !result.lines || !result.lines.length) return {scoreType:'cp',rawScore:0,cpEquivalent:0,scorePawns:0,pv:''};
+            return result.lines[0];
+        }
+
+        function scoreInWhitePerspective(fen, line) {
+            const score = line ? (line.scorePawns || 0) : 0;
+            return (String(fen).split(/\s+/)[1] || 'w') === 'w' ? score : -score;
+        }
+
+        function formatScore(line, showMate=true) {
+            if (!line) return '0.0';
+            if (showMate && line.scoreType === 'mate') return (line.rawScore > 0 ? '+' : '') + 'M' + line.rawScore;
+            const pawns = line.scorePawns || 0;
+            return (pawns > 0 ? '+' : '') + pawns.toFixed(2);
+        }
+
+        function parseUciMove(uci) {
+            if (!uci || uci === '(none)' || uci === '0000') return null;
+            return {from:uci.slice(0,2), to:uci.slice(2,4), promotion:uci.length > 4 ? uci[4] : undefined};
+        }
+
+        function uciLineToSan(fen, uciLine, maxMoves=12) {
+            if (!uciLine) return '—';
+            let temp;
+            try { temp = new Chess(fen); } catch (_) { temp = new Chess(); }
+            const parts = uciLine.trim().split(/\s+/).slice(0,maxMoves);
+            const sanParts = [];
+            for (const token of parts) {
+                const uci = parseUciMove(token);
+                if (!uci) break;
+                try {
+                    const move = temp.move(uci);
+                    if (!move) break;
+                    sanParts.push(move.san);
+                } catch (_) { break; }
+            }
+            return sanParts.join(' ') || uciLine;
+        }
+
+        function getBotDepth(level) {
+            if (level < 250) return 3;
+            if (level < 700) return 5;
+            if (level < 1300) return 7;
+            if (level < 2000) return 9;
+            if (level < 3000) return 11;
+            if (level < 5000) return 13;
+            return 15;
+        }
+
+        function updateBotElo(val) {
+            botElo = parseInt(val, 10) || 1;
+            document.getElementById('elo-value-label').innerText = botElo.toLocaleString('vi-VN');
+            let rankText = 'Tập chơi';
+            if (botElo >= 700) rankText = 'Cơ bản';
+            if (botElo >= 1300) rankText = 'Trung bình';
+            if (botElo >= 1800) rankText = 'Mạnh';
+            if (botElo >= 3000) rankText = 'Rất mạnh';
+            if (botElo > 3190) rankText = 'Toàn lực engine';
+            document.getElementById('bot-elo-badge').innerText = `Cấp độ: ${botElo.toLocaleString('vi-VN')} (${rankText})`;
         }
 
         function renderPlayBoard() {
             const boardEl = document.getElementById('chessboard');
             boardEl.innerHTML = '';
             const board = game.board();
-
             for (let r = 0; r < 8; r++) {
                 for (let c = 0; c < 8; c++) {
                     const actualR = playerColor === 'w' ? r : 7 - r;
                     const actualC = playerColor === 'w' ? c : 7 - c;
                     const sqId = String.fromCharCode(97 + actualC) + (8 - actualR);
                     const piece = board[actualR][actualC];
-
                     const sqDiv = document.createElement('div');
                     sqDiv.className = `w-full h-full flex items-center justify-center relative cursor-pointer ${(r + c) % 2 === 0 ? 'sq-light' : 'sq-dark'}`;
                     sqDiv.dataset.square = sqId;
-
                     if (selectedSquare === sqId) sqDiv.classList.add('hl-selected');
-
-                    const history = game.history({verbose: true});
-                    if (history.length > 0) {
+                    const history = game.history({verbose:true});
+                    if (history.length) {
                         const lastM = history[history.length - 1];
                         if (lastM.from === sqId || lastM.to === sqId) sqDiv.classList.add('hl-lastmove');
                     }
-
-                    if (possibleMoves.includes(sqId)) {
-                        sqDiv.classList.add(piece ? 'hl-capture' : 'hl-dot');
-                    }
-
+                    if (possibleMoves.includes(sqId)) sqDiv.classList.add(piece ? 'hl-capture' : 'hl-dot');
                     if (piece) {
-                        const pieceEl = document.createElement('div');
+                        const pieceEl = document.createElement('img');
                         pieceEl.className = 'piece-img';
-                        pieceEl.style.backgroundImage = `url('${getPieceSvgUrl(piece)}')`;
+                        pieceEl.alt = `${piece.color === 'w' ? 'Trắng' : 'Đen'} ${piece.type}`;
+                        pieceEl.draggable = false;
+                        pieceEl.src = getPiecePngUrl(piece);
+                        pieceEl.onerror = function(){ this.style.display='none'; };
                         sqDiv.appendChild(pieceEl);
                     }
-
-                    // Authentic Chess.com move badge attached to square
                     if (lastMoveBadgeSquare === sqId && lastMoveBadgeInfo) {
                         const badgeDiv = document.createElement('div');
                         badgeDiv.className = `badge-icon-overlay ${lastMoveBadgeInfo.bgClass}`;
-                        badgeDiv.innerHTML = lastMoveBadgeInfo.icon;
+                        badgeDiv.textContent = lastMoveBadgeInfo.icon;
                         sqDiv.appendChild(badgeDiv);
                     }
-
                     sqDiv.addEventListener('click', () => handleSquareClick(sqId));
                     boardEl.appendChild(sqDiv);
                 }
             }
-
             updateEvalBar();
             updateMoveHistory();
         }
 
         function handleSquareClick(sq) {
-            if (game.game_over()) return;
-
+            if (game.game_over() || botMoveInProgress || game.turn() !== playerColor) return;
             if (selectedSquare === null) {
                 const piece = game.get(sq);
-                if (piece && piece.color === game.turn() && piece.color === playerColor) {
+                if (piece && piece.color === playerColor) {
                     selectedSquare = sq;
-                    possibleMoves = game.moves({ square: sq, verbose: true }).map(m => m.to);
+                    possibleMoves = game.moves({square:sq, verbose:true}).map(m => m.to);
                     renderPlayBoard();
                 }
+                return;
+            }
+            if (selectedSquare === sq) {
+                selectedSquare = null; possibleMoves = []; renderPlayBoard(); return;
+            }
+            const piece = game.get(selectedSquare);
+            const isPromotion = piece && piece.type === 'p' && ((piece.color === 'w' && sq[1] === '8') || (piece.color === 'b' && sq[1] === '1'));
+            if (isPromotion) {
+                pendingPromotion = {from:selectedSquare,to:sq,beforeFen:game.fen(),mover:game.turn()};
+                document.getElementById('promotion-modal').classList.remove('hidden');
+                return;
+            }
+            const beforeFen = game.fen();
+            const mover = game.turn();
+            const moveRes = game.move({from:selectedSquare,to:sq,promotion:'q'});
+            if (moveRes) {
+                executeMoveEffect(moveRes);
+                selectedSquare = null; possibleMoves = []; lastMoveBadgeSquare = moveRes.to;
+                lastMoveBadgeInfo = null;
+                renderPlayBoard();
+                const afterFen = game.fen();
+                evaluatePlayedMove(beforeFen, afterFen, moveRes, mover).finally(() => {
+                    if (!game.game_over()) queueBotMove();
+                    else showGameResult();
+                });
             } else {
-                if (selectedSquare === sq) {
-                    selectedSquare = null;
-                    possibleMoves = [];
-                    renderPlayBoard();
-                    return;
-                }
-
-                const piece = game.get(selectedSquare);
-                if (piece && piece.type === 'p' && ((piece.color === 'w' && sq[1] === '8') || (piece.color === 'b' && sq[1] === '1'))) {
-                    pendingPromotion = { from: selectedSquare, to: sq };
-                    document.getElementById('promotion-modal').classList.remove('hidden');
-                    return;
-                }
-
-                const moveRes = game.move({ from: selectedSquare, to: sq, promotion: 'q' });
-
-                if (moveRes) {
-                    executeMoveEffect(moveRes);
-                    selectedSquare = null;
-                    possibleMoves = [];
-                    renderPlayBoard();
-
-                    if (!game.game_over()) {
-                        document.getElementById('bot-thinking').classList.remove('hidden');
-                        setTimeout(() => {
-                            const bMove = getBotMove();
-                            if (bMove) {
-                                const bRes = game.move(bMove);
-                                executeMoveEffect(bRes);
-                            }
-                            document.getElementById('bot-thinking').classList.add('hidden');
-                            renderPlayBoard();
-                        }, 300);
-                    }
-                } else {
-                    const newPiece = game.get(sq);
-                    if (newPiece && newPiece.color === game.turn() && newPiece.color === playerColor) {
-                        selectedSquare = sq;
-                        possibleMoves = game.moves({ square: sq, verbose: true }).map(m => m.to);
-                        renderPlayBoard();
-                    } else {
-                        selectedSquare = null;
-                        possibleMoves = [];
-                        renderPlayBoard();
-                    }
-                }
+                const pieceAtTarget = game.get(sq);
+                if (pieceAtTarget && pieceAtTarget.color === playerColor) {
+                    selectedSquare = sq;
+                    possibleMoves = game.moves({square:sq,verbose:true}).map(m=>m.to);
+                } else { selectedSquare = null; possibleMoves = []; }
+                renderPlayBoard();
             }
         }
 
         function executeMoveEffect(mRes) {
+            if (!mRes) return;
             if (game.in_check()) playSound('check');
             else if (mRes.captured) playSound('capture');
             else playSound('move');
-
-            generateTextbookCommentary(mRes);
         }
 
-        // TEXTBOOK VIETNAMESE MOVE COMMENTARY ENGINE & BADGES
-        function generateTextbookCommentary(mRes) {
+        function classifyLoss(lossCp, isBest) {
+            if (isBest) return {key:'best',name:'Tốt nhất',badge:'badge-best',icon:'✓',message:'Nước đi trùng với lựa chọn hàng đầu của Stockfish.'};
+            if (lossCp <= 10) return {key:'excellent',name:'Xuất sắc',badge:'badge-best',icon:'!',message:'Chỉ làm giảm lợi thế rất ít so với lựa chọn tốt nhất.'};
+            if (lossCp <= 25) return {key:'good',name:'Tốt',badge:'badge-good',icon:'✓',message:'Nước đi ổn; có lựa chọn chính xác hơn một chút.'};
+            if (lossCp <= 50) return {key:'inaccuracy',name:'Chưa chính xác',badge:'badge-inaccuracy',icon:'?!',message:'Nước đi làm giảm lợi thế đáng kể.'};
+            if (lossCp <= 100) return {key:'mistake',name:'Sai lầm',badge:'badge-mistake',icon:'?',message:'Nước đi bỏ lỡ cách chơi tốt hơn và khiến thế cờ xấu đi.'};
+            return {key:'blunder',name:'Blunder · Sai lầm lớn',badge:'badge-blunder',icon:'??',message:'Nước đi làm mất nhiều lợi thế theo đánh giá của engine.'};
+        }
+
+        async function evaluatePlayedMove(beforeFen, afterFen, move, mover) {
             const commentaryEl = document.getElementById('live-textbook-comment');
             const badgeEl = document.getElementById('live-move-badge');
-
-            const score = evaluatePosition(game.board()) / 100.0;
-            lastMoveBadgeSquare = mRes.to;
-            
-            if (mRes.captured && (mRes.captured === 'q' || mRes.captured === 'r')) {
-                badgeEl.className = "px-2.5 py-0.5 rounded-full text-xs font-extrabold badge-brilliant";
-                badgeEl.innerText = "Thiên Tài ‼️";
-                commentaryEl.innerText = "Thiên tài! Bạn vừa thực hiện một nước ăn quân chiến thuật cực kỳ xuất sắc mở toang thế trận!";
-                lastMoveBadgeInfo = { bgClass: 'badge-brilliant', icon: '‼️' };
-            } else if (mRes.san.includes('+')) {
-                badgeEl.className = "px-2.5 py-0.5 rounded-full text-xs font-extrabold badge-great";
-                badgeEl.innerText = "Tuyệt Vời ‽";
-                commentaryEl.innerText = "Nước đi tuyệt vời! Đòn chiếu gây áp lực tối đa lên Vua đối phương.";
-                lastMoveBadgeInfo = { bgClass: 'badge-great', icon: '‽' };
-            } else if (Math.abs(score) > 3) {
-                badgeEl.className = "px-2.5 py-0.5 rounded-full text-xs font-extrabold badge-blunder";
-                badgeEl.innerText = "Sai Lầm Ngu Đần ❓❓";
-                commentaryEl.innerText = "Sai lầm cực lớn! Thế trận bị đảo ngược hoàn toàn, để đối phương chiếm ưu thế áp đảo!";
-                lastMoveBadgeInfo = { bgClass: 'badge-blunder', icon: '❓' };
-            } else {
-                badgeEl.className = "px-2.5 py-0.5 rounded-full text-xs font-extrabold badge-best";
-                badgeEl.innerText = "Tốt Nhất ⭐";
-                commentaryEl.innerText = "Nước đi chuẩn theo sách giáo khoa! Duy trì cấu trúc tốt và kiểm soát trung tâm.";
-                lastMoveBadgeInfo = { bgClass: 'badge-best', icon: '⭐' };
+            commentaryEl.textContent = 'Stockfish đang so sánh thế cờ trước và sau nước đi…';
+            badgeEl.className = 'px-2.5 py-0.5 rounded-full text-xs font-extrabold bg-chess-hover text-chess-textLight';
+            badgeEl.textContent = 'Đang phân tích';
+            try {
+                const before = await analyzeFen(beforeFen, 10, 1);
+                const after = await analyzeFen(afterFen, 10, 1);
+                const beforeLine = primaryLine(before), afterLine = primaryLine(after);
+                const lossCp = Math.max(0, beforeLine.cpEquivalent + afterLine.cpEquivalent);
+                const expected = parseUciMove(before.bestmove);
+                const isBest = !!expected && expected.from === move.from && expected.to === move.to && (expected.promotion || '') === (move.promotion || '');
+                const cls = classifyLoss(lossCp, isBest);
+                badgeEl.className = `px-2.5 py-0.5 rounded-full text-xs font-extrabold ${cls.badge}`;
+                badgeEl.textContent = `${cls.name}${isBest ? '' : ` · −${(lossCp/100).toFixed(2)}`}`;
+                commentaryEl.textContent = `${cls.message} Stockfish đánh giá sau nước đi: ${formatWhiteScore(afterFen, afterLine)}. Gợi ý: ${uciLineToSan(beforeFen, before.bestmove, 1)}.`;
+                lastMoveBadgeInfo = {bgClass:cls.badge, icon:cls.icon};
+                lastMoveBadgeSquare = move.to;
+                if (game.fen() === afterFen) renderPlayBoard();
+                latestPlayEvalWhite = scoreInWhitePerspective(afterFen, afterLine);
+                updateEvalBar();
+            } catch (error) {
+                commentaryEl.textContent = 'Chưa lấy được phân tích Stockfish. Kiểm tra kết nối CDN rồi tải lại trang. Nước đi vẫn hợp lệ.';
+                badgeEl.className = 'px-2.5 py-0.5 rounded-full text-xs font-extrabold badge-inaccuracy';
+                badgeEl.textContent = 'Engine chưa sẵn sàng';
             }
+        }
+
+        function formatWhiteScore(fen, line) {
+            if (line && line.scoreType === 'mate') {
+                const mate = (fen.split(/\s+/)[1] === 'w') ? line.rawScore : -line.rawScore;
+                return (mate > 0 ? '+' : '') + 'M' + mate;
+            }
+            const val = scoreInWhitePerspective(fen, line);
+            return (val > 0 ? '+' : '') + val.toFixed(2);
         }
 
         function selectPromotion(pPiece) {
             document.getElementById('promotion-modal').classList.add('hidden');
-            if (pendingPromotion) {
-                const moveRes = game.move({ from: pendingPromotion.from, to: pendingPromotion.to, promotion: pPiece });
-                pendingPromotion = null;
-                if (moveRes) {
-                    executeMoveEffect(moveRes);
-                    selectedSquare = null;
-                    possibleMoves = [];
-                    renderPlayBoard();
-                }
+            if (!pendingPromotion) return;
+            const pending = pendingPromotion;
+            pendingPromotion = null;
+            const moveRes = game.move({from:pending.from,to:pending.to,promotion:pPiece});
+            if (moveRes) {
+                executeMoveEffect(moveRes);
+                selectedSquare = null; possibleMoves = []; lastMoveBadgeSquare = moveRes.to; lastMoveBadgeInfo = null;
+                renderPlayBoard();
+                evaluatePlayedMove(pending.beforeFen, game.fen(), moveRes, pending.mover).finally(() => {
+                    if (!game.game_over()) queueBotMove(); else showGameResult();
+                });
             }
         }
 
-        function updateEvalBar() {
-            const evalVal = evaluatePosition(game.board()) / 100.0;
-            const clamped = Math.max(-10, Math.min(10, evalVal));
-            const whitePct = 50 + (clamped * 5);
+        async function queueBotMove() {
+            if (botMoveInProgress || game.game_over() || game.turn() === playerColor) return;
+            botMoveInProgress = true;
+            document.getElementById('bot-thinking').classList.remove('hidden');
+            try {
+                const positionFen = game.fen();
+                let botMove = null;
+                const legal = game.moves({verbose:true});
+                // Very low slider values deliberately play a random legal move occasionally.
+                if (botElo < 180 && Math.random() < 0.45) {
+                    botMove = legal[Math.floor(Math.random() * legal.length)];
+                } else {
+                    const result = await analyzeFen(positionFen, getBotDepth(botElo), 1, {botLevel:botElo});
+                    if (game.fen() !== positionFen || game.game_over()) return;
+                    const uci = parseUciMove(result.bestmove);
+                    if (uci) botMove = legal.find(m => m.from === uci.from && m.to === uci.to && (m.promotion || '') === (uci.promotion || ''));
+                }
+                if (!botMove || game.fen() !== positionFen) return;
+                const res = game.move({from:botMove.from,to:botMove.to,promotion:botMove.promotion || 'q'});
+                if (res) {
+                    executeMoveEffect(res);
+                    lastMoveBadgeSquare = res.to;
+                    lastMoveBadgeInfo = null;
+                    latestPlayEvalWhite = 0;
+                    renderPlayBoard();
+                    try {
+                        const evaluatedFen = game.fen();
+                        const evalResult = await analyzeFen(evaluatedFen, 9, 1);
+                        if (game.fen() === evaluatedFen) {
+                            const line = primaryLine(evalResult);
+                            latestPlayEvalWhite = scoreInWhitePerspective(game.fen(), line);
+                            updateEvalBar();
+                            document.getElementById('live-move-badge').className = 'px-2.5 py-0.5 rounded-full text-xs font-extrabold badge-best';
+                            document.getElementById('live-move-badge').textContent = 'Stockfish đã chọn';
+                            document.getElementById('live-textbook-comment').textContent = `Bot chọn ${res.san}. Engine đánh giá thế cờ: ${formatWhiteScore(game.fen(), line)}.`;
+                        }
+                    } catch (_) {}
+                    renderPlayBoard();
+                    if (game.game_over()) showGameResult();
+                }
+            } catch (error) {
+                showToast('Stockfish chưa tải được. Hãy kiểm tra mạng và tải lại trang.');
+            } finally {
+                botMoveInProgress = false;
+                document.getElementById('bot-thinking').classList.add('hidden');
+                renderPlayBoard();
+            }
+        }
 
-            document.getElementById('eval-bar-white').style.height = `${whitePct}%`;
-            document.getElementById('eval-bar-black').style.height = `${100 - whitePct}%`;
-            document.getElementById('eval-score-text').innerText = (evalVal > 0 ? '+' : '') + evalVal.toFixed(1);
+        function showGameResult() {
+            playSound('gameover');
+            const msg = game.in_checkmate() ? `Chiếu hết! ${game.turn() === 'w' ? 'Đen' : 'Trắng'} thắng.` : 'Ván đấu kết thúc: hòa hoặc không còn nước hợp lệ.';
+            document.getElementById('live-textbook-comment').textContent = msg;
+        }
+
+        function updateEvalBar() {
+            const val = Math.max(-10, Math.min(10, latestPlayEvalWhite));
+            const whitePct = 50 + val * 5;
+            const blackEl = document.getElementById('eval-bar-black');
+            const whiteEl = document.getElementById('eval-bar-white');
+            const textEl = document.getElementById('eval-score-text');
+            if (blackEl) blackEl.style.height = `${100-whitePct}%`;
+            if (whiteEl) whiteEl.style.height = `${whitePct}%`;
+            if (textEl) textEl.innerText = (latestPlayEvalWhite > 0 ? '+' : '') + latestPlayEvalWhite.toFixed(1);
         }
 
         function updateMoveHistory() {
-            const history = game.history({verbose: true});
+            const history = game.history({verbose:true});
             const tbody = document.getElementById('move-history-body');
             tbody.innerHTML = '';
-
-            for (let i = 0; i < history.length; i += 2) {
+            for (let i=0; i<history.length; i+=2) {
                 const tr = document.createElement('tr');
                 tr.className = 'border-b border-chess-border/30 hover:bg-chess-hover/50';
-                const moveNum = Math.floor(i / 2) + 1;
+                const moveNum = Math.floor(i/2)+1;
                 const wMove = history[i] ? history[i].san : '';
                 const bMove = history[i+1] ? history[i+1].san : '';
-
-                tr.innerHTML = `
-                    <td class="py-1 px-2 font-bold text-chess-textMuted">${moveNum}.</td>
-                    <td class="py-1 px-2 font-extrabold text-chess-textLight">${wMove}</td>
-                    <td class="py-1 px-2 font-extrabold text-chess-textLight">${bMove}</td>
-                `;
+                tr.innerHTML = `<td class="py-1 px-2 font-bold text-chess-textMuted">${moveNum}.</td><td class="py-1 px-2 font-extrabold text-chess-textLight">${wMove}</td><td class="py-1 px-2 font-extrabold text-chess-textLight">${bMove}</td>`;
                 tbody.appendChild(tr);
             }
             const container = document.getElementById('move-history-container');
@@ -914,39 +1129,48 @@
         }
 
         function undoMove() {
-            game.undo(); game.undo();
-            selectedSquare = null; possibleMoves = []; lastMoveBadgeSquare = null;
+            if (botMoveInProgress) return;
+            game.undo();
+            if (game.history().length && game.turn() !== playerColor) game.undo();
+            selectedSquare = null; possibleMoves = []; lastMoveBadgeSquare = null; lastMoveBadgeInfo = null;
+            latestPlayEvalWhite = 0;
             renderPlayBoard();
-            showToast("Đã rút lại nước đi!");
+            showToast('Đã lùi lại nước đi.');
         }
 
-        function getHint() {
-            const bMove = getBotMove();
-            if (bMove) {
-                showToast(`Gợi ý Stockfish: Hãy đi ${bMove.from.toUpperCase()} đến ${bMove.to.toUpperCase()}`);
-            }
+        async function getHint() {
+            try {
+                const result = await analyzeFen(game.fen(), 12, 1);
+                const san = uciLineToSan(game.fen(), result.bestmove, 1);
+                showToast(`Stockfish gợi ý: ${san}`);
+                document.getElementById('live-textbook-comment').textContent = `Nước tốt nhất theo Stockfish: ${san}. Biến chính: ${uciLineToSan(game.fen(), primaryLine(result).pv, 8)}.`;
+            } catch (_) { showToast('Stockfish chưa sẵn sàng.'); }
         }
 
         function flipBoard() {
             playerColor = playerColor === 'w' ? 'b' : 'w';
             renderPlayBoard();
-            showToast(`Đã quay bàn cờ về hướng quân ${playerColor === 'w' ? 'Trắng' : 'Đen'}`);
+            showToast(`Bạn đang cầm quân ${playerColor === 'w' ? 'Trắng' : 'Đen'}.`);
+            if (game.turn() !== playerColor) queueBotMove();
         }
 
         function resignGame() {
             playSound('gameover');
-            showToast("Bạn đã chịu thua! Bot giành chiến thắng.");
-            game.reset(); lastMoveBadgeSquare = null;
-            renderPlayBoard();
+            game.reset(); selectedSquare = null; possibleMoves = []; lastMoveBadgeSquare = null; lastMoveBadgeInfo = null;
+            latestPlayEvalWhite = 0; renderPlayBoard();
+            showToast('Đã kết thúc ván hiện tại.');
         }
 
         function startNewGame() {
-            game.reset();
-            selectedSquare = null; possibleMoves = []; lastMoveBadgeSquare = null;
-            renderPlayBoard();
-            showToast("Ván cờ mới bắt đầu!");
+            game.reset(); selectedSquare = null; possibleMoves = []; lastMoveBadgeSquare = null; lastMoveBadgeInfo = null;
+            latestPlayEvalWhite = 0; pendingPromotion = null;
+            document.getElementById('promotion-modal').classList.add('hidden');
+            document.getElementById('live-move-badge').className = 'px-2.5 py-0.5 rounded-full text-xs font-extrabold badge-best';
+            document.getElementById('live-move-badge').textContent = 'Chờ nước đi';
+            document.getElementById('live-textbook-comment').textContent = 'Stockfish sẽ chấm nước đi sau khi bạn di chuyển.';
+            renderPlayBoard(); showToast('Ván mới bắt đầu!');
+            if (playerColor === 'b') queueBotMove();
         }
-
 
         // ================= TAB 2: CHESS.COM REVIEW & LOOKUP =================
         let loadedGames = [];
@@ -1014,19 +1238,32 @@
             });
         }
 
+        let reviewStartFen = new Chess().fen();
+        let reviewMoveResults = [];
+        let reviewPositionScores = [];
+        let reviewAnalysisRunning = false;
+
         function selectGameForReview(idx) {
             const g = loadedGames[idx];
+            if (!g) return;
             document.getElementById('review-placeholder').classList.add('hidden');
             document.getElementById('review-active-content').classList.remove('hidden');
-
             document.getElementById('review-white-player').innerText = `${g.white.username} (${g.white.rating})`;
             document.getElementById('review-black-player').innerText = `${g.black.username} (${g.black.rating})`;
-
+            reviewChess = new Chess();
             reviewChess.load_pgn(g.pgn);
-            reviewHistory = reviewChess.history({verbose: true});
-            reviewChess.reset();
+            reviewHistory = reviewChess.history({verbose:true});
+            const fenTag = (g.pgn.match(/\[FEN\s+"([^"]+)"\]/i) || [])[1];
+            reviewStartFen = fenTag || new Chess().fen();
+            reviewChess.load(reviewStartFen);
             reviewCurrentIdx = 0;
-
+            reviewMoveResults = [];
+            reviewPositionScores = [];
+            document.getElementById('white-accuracy-score').textContent = '—';
+            document.getElementById('black-accuracy-score').textContent = '—';
+            document.getElementById('review-analysis-progress').textContent = 'Chưa phân tích';
+            document.getElementById('review-classification-summary').innerHTML = '';
+            drawReviewEvalGraph([]);
             renderReviewBoard();
         }
 
@@ -1034,49 +1271,56 @@
             const boardEl = document.getElementById('review-chessboard');
             boardEl.innerHTML = '';
             const board = reviewChess.board();
-
-            for (let r = 0; r < 8; r++) {
-                for (let c = 0; c < 8; c++) {
-                    const sqId = String.fromCharCode(97 + c) + (8 - r);
+            const selectedResult = reviewCurrentIdx > 0 ? reviewMoveResults[reviewCurrentIdx-1] : null;
+            for (let r=0; r<8; r++) {
+                for (let c=0; c<8; c++) {
+                    const sqId = String.fromCharCode(97+c) + (8-r);
                     const piece = board[r][c];
-
                     const sqDiv = document.createElement('div');
-                    sqDiv.className = `w-full h-full flex items-center justify-center relative ${(r + c) % 2 === 0 ? 'sq-light' : 'sq-dark'}`;
-
-                    if (reviewHistory.length > 0 && reviewCurrentIdx > 0) {
-                        const curM = reviewHistory[reviewCurrentIdx - 1];
-                        if (curM && (curM.from === sqId || curM.to === sqId)) sqDiv.classList.add('hl-lastmove');
+                    sqDiv.className = `w-full h-full flex items-center justify-center relative ${(r+c)%2===0 ? 'sq-light' : 'sq-dark'}`;
+                    if (reviewHistory.length && reviewCurrentIdx > 0) {
+                        const prev = reviewHistory[reviewCurrentIdx-1];
+                        if (prev && (prev.from === sqId || prev.to === sqId)) sqDiv.classList.add('hl-lastmove');
                     }
-
                     if (piece) {
-                        const pieceEl = document.createElement('div');
+                        const pieceEl = document.createElement('img');
                         pieceEl.className = 'piece-img';
-                        pieceEl.style.backgroundImage = `url('${getPieceSvgUrl(piece)}')`;
+                        pieceEl.alt = `${piece.color === 'w' ? 'Trắng' : 'Đen'} ${piece.type}`;
+                        pieceEl.draggable = false;
+                        pieceEl.src = getPiecePngUrl(piece);
+                        pieceEl.onerror = function(){ this.style.display='none'; };
                         sqDiv.appendChild(pieceEl);
+                    }
+                    if (selectedResult && selectedResult.move.to === sqId) {
+                        const badge = document.createElement('div');
+                        badge.className = `badge-icon-overlay ${selectedResult.classification.badge}`;
+                        badge.textContent = selectedResult.classification.icon;
+                        sqDiv.appendChild(badge);
                     }
                     boardEl.appendChild(sqDiv);
                 }
             }
-
             document.getElementById('review-move-counter').innerText = `Nước ${reviewCurrentIdx} / ${reviewHistory.length}`;
-            
-            const badges = [
-                { name: "Thiên Tài ‼️", class: "badge-brilliant", text: "Nước hy sinh quân đẳng cấp thế giới làm rung chuyển toàn bộ trận đấu!" },
-                { name: "Tuyệt Vời ‽", class: "badge-great", text: "Nước đi cực hay duy trì sức ép nghẹt thở lên đối phương." },
-                { name: "Tốt Nhất ⭐", class: "badge-best", text: "Nước đi chính xác nhất theo gợi ý từ máy tính." },
-                { name: "Sai Lầm Ngu Đần ❓❓", class: "badge-blunder", text: "Sai lầm chết người dẫn đến mất lợi thế hoặc mất quân vô điều kiện!" }
-            ];
-
-            const curBadge = badges[reviewCurrentIdx % badges.length];
             const badgeEl = document.getElementById('review-move-badge');
-            badgeEl.className = `px-2.5 py-0.5 rounded-full text-xs font-extrabold ${curBadge.class}`;
-            badgeEl.innerText = curBadge.name;
-            document.getElementById('review-move-explanation').innerText = curBadge.text;
+            const explanationEl = document.getElementById('review-move-explanation');
+            if (!selectedResult) {
+                badgeEl.className = 'px-2.5 py-0.5 rounded-full text-xs font-extrabold badge-best';
+                badgeEl.textContent = reviewMoveResults.length ? 'Chọn một nước đi' : 'Chưa phân tích';
+                explanationEl.textContent = reviewMoveResults.length ? 'Dùng Trước/Sau để xem đánh giá từng nước.' : 'Bấm “Phân Tích Toàn Bộ Ván” để Stockfish kiểm tra từng vị trí. Kết quả chưa được tự điền trước.';
+                return;
+            }
+            const cls = selectedResult.classification;
+            badgeEl.className = `px-2.5 py-0.5 rounded-full text-xs font-extrabold ${cls.badge}`;
+            badgeEl.textContent = `${cls.name} · −${(selectedResult.lossCp/100).toFixed(2)}`;
+            const bestSan = uciLineToSan(selectedResult.beforeFen, selectedResult.bestMove, 1);
+            const pvSan = uciLineToSan(selectedResult.beforeFen, selectedResult.pv, 8);
+            explanationEl.textContent = `${selectedResult.move.san}: ${cls.message} Mất lợi thế ước tính ${Math.round(selectedResult.lossCp)} centipawn. Nước tốt nhất: ${bestSan}. Biến chính: ${pvSan}.`;
         }
 
         function reviewStep(step) {
             if (step === 1 && reviewCurrentIdx < reviewHistory.length) {
-                reviewChess.move(reviewHistory[reviewCurrentIdx]);
+                const m = reviewHistory[reviewCurrentIdx];
+                reviewChess.move({from:m.from,to:m.to,promotion:m.promotion});
                 reviewCurrentIdx++;
             } else if (step === -1 && reviewCurrentIdx > 0) {
                 reviewCurrentIdx--;
@@ -1085,59 +1329,227 @@
             renderReviewBoard();
         }
 
-        function runFullReviewAnalysis() {
-            showToast("Đang phân tích toán học toàn bộ ván đấu...");
-            setTimeout(() => {
-                showToast("Phân tích hoàn tất! Độ chính xác Trắng: 95.8% | Đen: 92.4%");
-            }, 1200);
+        function drawReviewEvalGraph(scores) {
+            const canvas = document.getElementById('review-eval-graph');
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
+            const w = canvas.width, h = canvas.height;
+            ctx.clearRect(0,0,w,h);
+            ctx.fillStyle = '#1b1a18'; ctx.fillRect(0,0,w,h);
+            const pad = 16, mid = h/2;
+            ctx.strokeStyle = '#45413b'; ctx.lineWidth = 1;
+            for (let i=0;i<=4;i++) { const y=pad+i*(h-pad*2)/4; ctx.beginPath(); ctx.moveTo(pad,y); ctx.lineTo(w-pad,y); ctx.stroke(); }
+            ctx.strokeStyle = '#78716c'; ctx.setLineDash([5,5]); ctx.beginPath(); ctx.moveTo(pad,mid); ctx.lineTo(w-pad,mid); ctx.stroke(); ctx.setLineDash([]);
+            if (!scores || !scores.length) {
+                ctx.fillStyle = '#989795'; ctx.font = 'bold 20px Nunito, sans-serif'; ctx.textAlign = 'center'; ctx.fillText('Chạy phân tích để xem biểu đồ',w/2,mid-2); return;
+            }
+            const points = scores.map((item,i)=>({x:pad+(w-2*pad)*(scores.length===1?0.5:i/(scores.length-1)),y:mid-Math.max(-8,Math.min(8,item.whiteEval))*(h-2*pad)/16}));
+            ctx.beginPath();
+            points.forEach((p,i)=>{ if(i===0) ctx.moveTo(p.x,p.y); else ctx.lineTo(p.x,p.y); });
+            ctx.lineWidth=4; ctx.lineJoin='round'; ctx.lineCap='round'; ctx.strokeStyle='#81b64c'; ctx.stroke();
+            const last=points[points.length-1]; ctx.fillStyle='#a3d168'; ctx.beginPath(); ctx.arc(last.x,last.y,5,0,Math.PI*2); ctx.fill();
+            ctx.fillStyle='#d6d3d1'; ctx.font='bold 16px Nunito, sans-serif'; ctx.textAlign='left'; ctx.fillText('+8',pad,14); ctx.fillText('0',pad,mid-5); ctx.fillText('−8',pad,h-2);
         }
 
+        function accuracyFromLoss(lossCp) {
+            // Indicative local estimate only; Chess.com's official accuracy model is proprietary.
+            return Math.max(0, Math.min(100, 100 * Math.exp(-Math.max(0,lossCp) / 160)));
+        }
 
-        // ================= TAB 3: ANALYSIS BOARD =================
+        async function runFullReviewAnalysis() {
+            if (reviewAnalysisRunning) return;
+            if (!reviewHistory.length) { showToast('Ván chưa có nước đi để phân tích.'); return; }
+            reviewAnalysisRunning = true;
+            const button = document.querySelector('#review-active-content button[onclick="runFullReviewAnalysis()"]');
+            if (button) { button.disabled=true; button.innerHTML='<i class="fa-solid fa-spinner fa-spin"></i> Đang phân tích…'; }
+            try {
+                await initStockfish();
+                const temp = new Chess(reviewStartFen);
+                const positions = [{fen:temp.fen()}];
+                const moves = [];
+                for (const historyMove of reviewHistory) {
+                    const beforeFen = temp.fen();
+                    const played = temp.move({from:historyMove.from,to:historyMove.to,promotion:historyMove.promotion});
+                    if (!played) continue;
+                    const afterFen = temp.fen();
+                    moves.push({move:played,beforeFen,afterFen});
+                    positions.push({fen:afterFen});
+                }
+                const scores = [];
+                for (let i=0;i<positions.length;i++) {
+                    const result = await analyzeFen(positions[i].fen, 9, 1);
+                    const line = primaryLine(result);
+                    scores.push({fen:positions[i].fen, line, sideScore:line.cpEquivalent, whiteEval:scoreInWhitePerspective(positions[i].fen,line), result});
+                    document.getElementById('review-analysis-progress').textContent = `${i+1}/${positions.length} vị trí`;
+                    drawReviewEvalGraph(scores);
+                }
+                reviewPositionScores = scores;
+                reviewMoveResults = moves.map((record,i)=>{
+                    const before = scores[i] || {sideScore:0,result:{bestmove:'(none)'}};
+                    const after = scores[i+1] || {sideScore:0};
+                    const bestMove = before.result.bestmove;
+                    const bestUci = parseUciMove(bestMove);
+                    const isBest = !!bestUci && bestUci.from===record.move.from && bestUci.to===record.move.to && (bestUci.promotion||'')===(record.move.promotion||'');
+                    const lossCp = isBest ? 0 : Math.max(0, Math.min(3000, before.sideScore + after.sideScore));
+                    const cls = classifyLoss(lossCp,isBest);
+                    return {move:record.move,beforeFen:record.beforeFen,afterFen:record.afterFen,bestMove,pv:primaryLine(before.result).pv,lossCp,classification:cls};
+                });
+                const whiteLosses = reviewMoveResults.filter(x=>x.move.color==='w').map(x=>x.lossCp);
+                const blackLosses = reviewMoveResults.filter(x=>x.move.color==='b').map(x=>x.lossCp);
+                const averageAccuracy = arr => arr.length ? arr.reduce((sum,loss)=>sum+accuracyFromLoss(loss),0)/arr.length : 100;
+                document.getElementById('white-accuracy-score').textContent = `${averageAccuracy(whiteLosses).toFixed(1)}%`;
+                document.getElementById('black-accuracy-score').textContent = `${averageAccuracy(blackLosses).toFixed(1)}%`;
+                const counts = {};
+                reviewMoveResults.forEach(r=>{ counts[r.classification.key]=(counts[r.classification.key]||0)+1; });
+                const labelMap = {best:'Tốt nhất',excellent:'Xuất sắc',good:'Tốt',inaccuracy:'Chưa chính xác',mistake:'Sai lầm',blunder:'Blunder'};
+                const sumEl = document.getElementById('review-classification-summary'); sumEl.innerHTML='';
+                Object.keys(labelMap).forEach(key=>{
+                    const span=document.createElement('span'); span.className='review-stat';
+                    span.textContent=`${labelMap[key]}: ${counts[key]||0}`; sumEl.appendChild(span);
+                });
+                document.getElementById('review-analysis-progress').textContent = `Xong · ${positions.length} vị trí`;
+                reviewCurrentIdx = Math.min(reviewCurrentIdx, reviewHistory.length);
+                renderReviewBoard();
+                showToast('Phân tích Stockfish hoàn tất. Độ chính xác là ước tính từ mức mất điểm, không phải điểm CAPS chính thức của Chess.com.');
+            } catch (error) {
+                console.error(error);
+                document.getElementById('review-analysis-progress').textContent = 'Lỗi engine';
+                showToast('Không chạy được Stockfish. Kiểm tra mạng/CDN rồi thử lại.');
+            } finally {
+                reviewAnalysisRunning=false;
+                if (button) { button.disabled=false; button.innerHTML='<i class="fa-solid fa-wand-magic-sparkles"></i> Phân Tích Toàn Bộ Ván'; }
+            }
+        }
+
+        // ================= TAB 3: LIVE STOCKFISH ANALYSIS BOARD =================
         let analysisChess = new Chess();
+        let analysisSelectedSquare = null;
+        let analysisPossibleMoves = [];
+        let analysisRequestedFen = '';
+        let analysisLastResult = null;
 
         window.renderAnalysisBoard = function() {
             const boardEl = document.getElementById('analysis-chessboard');
             boardEl.innerHTML = '';
+            boardEl.style.position = 'relative';
             const board = analysisChess.board();
-
-            for (let r = 0; r < 8; r++) {
-                for (let c = 0; c < 8; c++) {
-                    const sqId = String.fromCharCode(97 + c) + (8 - r);
+            for (let r=0;r<8;r++) {
+                for (let c=0;c<8;c++) {
+                    const sqId = String.fromCharCode(97+c)+(8-r);
                     const piece = board[r][c];
-
                     const sqDiv = document.createElement('div');
-                    sqDiv.className = `w-full h-full flex items-center justify-center relative ${(r + c) % 2 === 0 ? 'sq-light' : 'sq-dark'}`;
-
+                    sqDiv.className = `w-full h-full flex items-center justify-center relative cursor-pointer ${(r+c)%2===0 ? 'sq-light' : 'sq-dark'}`;
+                    if (analysisSelectedSquare===sqId) sqDiv.classList.add('analysis-square-selected');
+                    if (analysisPossibleMoves.includes(sqId)) sqDiv.classList.add(piece ? 'analysis-square-capture' : 'analysis-square-legal');
                     if (piece) {
-                        const pieceEl = document.createElement('div');
-                        pieceEl.className = 'piece-img';
-                        pieceEl.style.backgroundImage = `url('${getPieceSvgUrl(piece)}')`;
-                        sqDiv.appendChild(pieceEl);
+                        const img = document.createElement('img'); img.className='piece-img';
+                        img.alt=`${piece.color==='w'?'Trắng':'Đen'} ${piece.type}`; img.draggable=false; img.src=getPiecePngUrl(piece);
+                        img.onerror=function(){this.style.display='none';}; sqDiv.appendChild(img);
                     }
+                    sqDiv.addEventListener('click',()=>handleAnalysisSquareClick(sqId));
                     boardEl.appendChild(sqDiv);
                 }
             }
-            document.getElementById('analysis-eval-badge').innerText = "+0.35";
+            drawBestMoveArrow();
+            updateAnalysisEvaluation();
+        };
+
+        function handleAnalysisSquareClick(square) {
+            if (!analysisSelectedSquare) {
+                const piece = analysisChess.get(square);
+                if (piece && piece.color===analysisChess.turn()) {
+                    analysisSelectedSquare=square;
+                    analysisPossibleMoves=analysisChess.moves({square,verbose:true}).map(m=>m.to);
+                    renderAnalysisBoard();
+                }
+                return;
+            }
+            if (analysisSelectedSquare===square) {
+                analysisSelectedSquare=null; analysisPossibleMoves=[]; renderAnalysisBoard(); return;
+            }
+            const move=analysisChess.move({from:analysisSelectedSquare,to:square,promotion:'q'});
+            if (move) {
+                analysisSelectedSquare=null; analysisPossibleMoves=[]; analysisLastResult=null; analysisRequestedFen='';
+                renderAnalysisBoard();
+            } else {
+                const piece=analysisChess.get(square);
+                if (piece && piece.color===analysisChess.turn()) {
+                    analysisSelectedSquare=square;
+                    analysisPossibleMoves=analysisChess.moves({square,verbose:true}).map(m=>m.to);
+                } else { analysisSelectedSquare=null; analysisPossibleMoves=[]; }
+                renderAnalysisBoard();
+            }
+        }
+
+        function updateAnalysisEvalBar(whiteEval) {
+            const val=Math.max(-10,Math.min(10,whiteEval));
+            const whitePct=50+val*5;
+            document.getElementById('analysis-eval-white').style.height=`${whitePct}%`;
+            document.getElementById('analysis-eval-black').style.height=`${100-whitePct}%`;
+        }
+
+        async function updateAnalysisEvaluation(force=false) {
+            const fen=analysisChess.fen();
+            if (!force && analysisRequestedFen===fen) return;
+            analysisRequestedFen=fen;
+            document.getElementById('analysis-engine-meta').textContent='Stockfish đang phân tích…';
+            try {
+                const result=await analyzeFen(fen,13,3);
+                if (analysisChess.fen()!==fen) return;
+                analysisLastResult=result;
+                const line=primaryLine(result);
+                const whiteEval=scoreInWhitePerspective(fen,line);
+                updateAnalysisEvalBar(whiteEval);
+                document.getElementById('analysis-eval-badge').textContent=formatWhiteScore(fen,line);
+                document.getElementById('analysis-best-line').textContent=uciLineToSan(fen,line.pv,12);
+                document.getElementById('analysis-engine-meta').textContent=`Stockfish 19 Lite · depth ${line.depth || result.depth} · MultiPV ${result.lines.length}`;
+                const linesEl=document.getElementById('analysis-lines'); linesEl.innerHTML='';
+                result.lines.forEach((pv,index)=>{
+                    const row=document.createElement('div'); row.className='engine-line-row';
+                    const rank=document.createElement('span'); rank.className='line-rank'; rank.textContent=`${index+1}.`;
+                    const score=document.createElement('span'); score.className='line-score'; score.textContent=formatScore(pv);
+                    const text=document.createElement('span'); text.className='line-pv'; text.textContent=uciLineToSan(fen,pv.pv,12);
+                    row.append(rank,score,text); linesEl.appendChild(row);
+                });
+                drawBestMoveArrow();
+            } catch (error) {
+                document.getElementById('analysis-engine-meta').textContent='Engine chưa sẵn sàng · kiểm tra mạng/CDN';
+                document.getElementById('analysis-best-line').textContent='Không nhận được biến từ Stockfish.';
+            }
+        }
+
+        function drawBestMoveArrow() {
+            const boardEl=document.getElementById('analysis-chessboard');
+            const old=boardEl.querySelector('svg.bestmove-arrow-layer');
+            if (old) old.remove();
+            if (!analysisLastResult || !analysisLastResult.bestmove || analysisLastResult.bestmove==='(none)') return;
+            const move=parseUciMove(analysisLastResult.bestmove);
+            if (!move) return;
+            const xy=sq=>({x:((sq.charCodeAt(0)-97)+0.5)*12.5,y:(8-Number(sq[1])+0.5)*12.5});
+            const a=xy(move.from),b=xy(move.to);
+            const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
+            svg.setAttribute('class','bestmove-arrow-layer'); svg.setAttribute('viewBox','0 0 100 100');
+            svg.style.cssText='position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible;z-index:15;';
+            svg.innerHTML=`<defs><marker id="best-arrow-head" markerWidth="5" markerHeight="5" refX="3.5" refY="2.5" orient="auto"><path d="M0,0 L5,2.5 L0,5 Z" fill="#81b64c" fill-opacity=".9"></path></marker></defs><line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" stroke="#81b64c" stroke-opacity=".78" stroke-width="1.6" stroke-linecap="round" marker-end="url(#best-arrow-head)"/>`;
+            boardEl.appendChild(svg);
         }
 
         function resetAnalysisBoard() {
-            analysisChess.reset();
-            renderAnalysisBoard();
-            showToast("Bàn cờ phân tích đã được đặt lại.");
+            analysisChess.reset(); analysisSelectedSquare=null; analysisPossibleMoves=[]; analysisLastResult=null; analysisRequestedFen='';
+            renderAnalysisBoard(); showToast('Đã đặt lại bàn phân tích.');
         }
 
         function copyFEN() {
-            const fen = analysisChess.fen();
-            const temp = document.createElement('textarea');
-            temp.value = fen;
-            document.body.appendChild(temp);
-            temp.select();
-            document.execCommand('copy');
-            document.body.removeChild(temp);
-            showToast("Đã sao chép chuỗi FEN vào clipboard!");
+            const fen=analysisChess.fen();
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(fen).then(()=>showToast('Đã sao chép FEN!')).catch(()=>copyTextFallback(fen));
+            } else copyTextFallback(fen);
         }
-
+        function copyTextFallback(text) {
+            const temp=document.createElement('textarea'); temp.value=text; document.body.appendChild(temp); temp.select();
+            try { document.execCommand('copy'); showToast('Đã sao chép FEN!'); } catch (_) { showToast('Không tự sao chép được; FEN: '+text); }
+            document.body.removeChild(temp);
+        }
 
         // ================= TAB 4: SETTINGS & THEMES =================
         function setBoardTheme(themeName) {
@@ -1151,10 +1563,26 @@
             showToast("Đã cập nhật chủ đề bàn cờ mới!");
         }
 
+        document.addEventListener('keydown', function(event) {
+            if (event.target && ['INPUT','TEXTAREA'].includes(event.target.tagName)) return;
+            if (document.getElementById('view-review') && !document.getElementById('view-review').classList.contains('hidden')) {
+                if (event.key === 'ArrowLeft') reviewStep(-1);
+                if (event.key === 'ArrowRight') reviewStep(1);
+            }
+        });
+
         // --- INIT APP ---
         window.onload = function() {
             renderPlayBoard();
             updateBotElo(1500);
+            setEngineStatus('Đang tải Stockfish…', 'loading');
+            initStockfish().then(() => {
+                document.getElementById('live-textbook-comment').textContent = 'Stockfish 19 Lite đã sẵn sàng. Đi một nước để nhận chấm điểm từ engine.';
+                if (document.getElementById('view-analysis') && !document.getElementById('view-analysis').classList.contains('hidden')) renderAnalysisBoard();
+            }).catch(() => {
+                setEngineStatus('Lỗi tải engine', 'error');
+                document.getElementById('live-textbook-comment').textContent = 'Không tải được Stockfish từ CDN. Hãy kiểm tra internet và mở lại trang qua HTTPS/localhost.';
+            });
         };
     </script>
 </body>
