@@ -135,7 +135,7 @@
             pointer-events: none;
         }
 
-        .engine-status { display:inline-flex; align-items:center; gap:7px; max-width:230px; padding:5px 9px; border:1px solid #383531; border-radius:999px; background:#21201d; color:#bab4ab; font-size:10px; font-weight:800; white-space:nowrap; }
+        .engine-status { cursor:pointer; user-select:none; display:inline-flex; align-items:center; gap:7px; max-width:230px; padding:5px 9px; border:1px solid #383531; border-radius:999px; background:#21201d; color:#bab4ab; font-size:10px; font-weight:800; white-space:nowrap; }
         .engine-status-dot { width:7px; height:7px; display:inline-block; border-radius:50%; background:#e8b94f; flex:0 0 auto; }
         .engine-status.ready .engine-status-dot { background:#81b64c; box-shadow:0 0 0 3px rgba(129,182,76,.12); }
         .engine-status.error .engine-status-dot { background:#fa412d; }
@@ -255,7 +255,7 @@
                 <span id="current-mode-title" class="text-base font-extrabold text-chess-textLight flex items-center gap-2">
                     <i class="fa-solid fa-robot text-chess-green"></i> Đấu Cờ Với Stockfish Bot
                 </span>
-                <span id="engine-status" class="engine-status" title="Stockfish chạy trong trình duyệt qua WebAssembly"><span class="engine-status-dot"></span><span id="engine-status-text">Đang khởi tạo Stockfish…</span></span>
+                <span id="engine-status" class="engine-status" role="button" tabindex="0" onclick="retryStockfish()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();retryStockfish();}" title="Nhấn để thử tải lại Stockfish"><span class="engine-status-dot"></span><span id="engine-status-text">Đang khởi tạo Stockfish…</span></span>
             </div>
             <div class="flex items-center gap-2">
                 <button onclick="toggleAudio()" id="sound-btn" class="px-3 py-1.5 rounded-lg bg-chess-panel hover:bg-chess-hover text-chess-textLight text-xs font-bold transition flex items-center gap-2 border border-chess-border">
@@ -679,11 +679,18 @@
         let latestPlayEvalWhite = 0;
         let botMoveInProgress = false;
 
-        // Stockfish.js 19 Lite single-threaded WASM: no COOP/COEP headers required.
-        // The CDN JS and matching WASM are loaded inside a Blob worker to work on normal HTTPS hosts.
-        const STOCKFISH_VERSION = '19.0.1';
-        const STOCKFISH_BASE = `https://cdn.jsdelivr.net/npm/stockfish@${STOCKFISH_VERSION}/bin/`;
+        // Stockfish fallback chain: try recent WASM builds on two CDNs, then ASM-JS.
+        // Lite single-threaded builds do not require COOP/COEP headers. ASM-JS is the final fallback.
+        const STOCKFISH_CANDIDATES = [
+            {label:'Stockfish 19 Lite · jsDelivr', base:'https://cdn.jsdelivr.net/npm/stockfish@19.0.1/bin/', js:'stockfish-19-lite-single.js', wasm:'stockfish-19-lite-single.wasm'},
+            {label:'Stockfish 19 Lite · unpkg', base:'https://unpkg.com/stockfish@19.0.1/bin/', js:'stockfish-19-lite-single.js', wasm:'stockfish-19-lite-single.wasm'},
+            {label:'Stockfish 18 Lite · jsDelivr', base:'https://cdn.jsdelivr.net/npm/stockfish@18.0.8/bin/', js:'stockfish-18-lite-single.js', wasm:'stockfish-18-lite-single.wasm'},
+            {label:'Stockfish 18 Lite · unpkg', base:'https://unpkg.com/stockfish@18.0.8/bin/', js:'stockfish-18-lite-single.js', wasm:'stockfish-18-lite-single.wasm'},
+            {label:'Stockfish 19 ASM-JS · jsDelivr', base:'https://cdn.jsdelivr.net/npm/stockfish@19.0.1/bin/', js:'stockfish-19-asm.js', wasm:null},
+            {label:'Stockfish 19 ASM-JS · unpkg', base:'https://unpkg.com/stockfish@19.0.1/bin/', js:'stockfish-19-asm.js', wasm:null}
+        ];
         let stockfishWorker = null;
+        let stockfishWorkerBlobUrl = null;
         let stockfishReady = false;
         let stockfishInitPromise = null;
         let stockfishInitResolve = null;
@@ -691,19 +698,38 @@
         let stockfishQueue = [];
         let activeEngineJob = null;
         let engineInitTimer = null;
+        let stockfishCandidateIndex = -1;
+        let stockfishLastLoadError = '';
 
-        function setEngineStatus(text, state='loading') {
+        function setEngineStatus(text, state='loading', detail='') {
             const pill = document.getElementById('engine-status');
             const label = document.getElementById('engine-status-text');
             if (label) label.textContent = text;
             if (pill) {
                 pill.classList.toggle('ready', state === 'ready');
                 pill.classList.toggle('error', state === 'error');
+                pill.title = detail || (state === 'ready'
+                    ? 'Stockfish đã sẵn sàng chạy trong trình duyệt'
+                    : 'Nhấn để thử tải lại Stockfish');
             }
         }
 
-        function failStockfish(error, label='Lỗi tải Stockfish') {
-            const failure = error instanceof Error ? error : new Error(String(error || 'Stockfish không phản hồi.'));
+        function releaseStockfishWorker() {
+            if (stockfishWorker) {
+                stockfishWorker.onmessage = null;
+                stockfishWorker.onerror = null;
+                stockfishWorker.onmessageerror = null;
+                try { stockfishWorker.terminate(); } catch (_) {}
+                stockfishWorker = null;
+            }
+            if (stockfishWorkerBlobUrl) {
+                try { URL.revokeObjectURL(stockfishWorkerBlobUrl); } catch (_) {}
+                stockfishWorkerBlobUrl = null;
+            }
+        }
+
+        function failStockfish(error, label='Không tải được Stockfish') {
+            const failure = error instanceof Error ? error : new Error(String(error || 'Engine không phản hồi.'));
             clearTimeout(engineInitTimer);
             engineInitTimer = null;
             const rejectInit = stockfishInitReject;
@@ -715,11 +741,8 @@
             stockfishInitPromise = null;
             stockfishInitResolve = null;
             stockfishInitReject = null;
-            if (stockfishWorker) {
-                try { stockfishWorker.terminate(); } catch (_) {}
-                stockfishWorker = null;
-            }
-            setEngineStatus(label, 'error');
+            releaseStockfishWorker();
+            setEngineStatus(label, 'error', failure.message);
             if (rejectInit) rejectInit(failure);
             if (active && typeof active.reject === 'function') active.reject(failure);
             queued.forEach(job => { try { job.reject(failure); } catch (_) {} });
@@ -728,48 +751,100 @@
         function initStockfish() {
             if (stockfishReady && stockfishWorker) return Promise.resolve();
             if (stockfishInitPromise) return stockfishInitPromise;
+            stockfishReady = false;
+            stockfishLastLoadError = '';
             setEngineStatus('Đang tải Stockfish…', 'loading');
             stockfishInitPromise = new Promise((resolve, reject) => {
                 stockfishInitResolve = resolve;
                 stockfishInitReject = reject;
-                try {
-                    const jsUrl = `${STOCKFISH_BASE}stockfish-19-lite-single.js`;
-                    const wasmUrl = `${STOCKFISH_BASE}stockfish-19-lite-single.wasm`;
-                    const workerSource = `
-                        self.Module = self.Module || {};
-                        self.Module.locateFile = function(path) {
-                            if (path && path.endsWith('.wasm')) return ${JSON.stringify(wasmUrl)};
-                            return ${JSON.stringify(STOCKFISH_BASE)} + path;
-                        };
-                        importScripts(${JSON.stringify(jsUrl)});
-                    `;
-                    const blobUrl = URL.createObjectURL(new Blob([workerSource], {type:'text/javascript'}));
-                    stockfishWorker = new Worker(blobUrl);
-                    stockfishWorker.onmessage = function(event) {
-                        const raw = event && event.data !== undefined ? event.data : '';
-                        String(raw).split(/\r?\n/).forEach(handleStockfishLine);
-                    };
-                    stockfishWorker.onerror = function(event) {
-                        const detail = event && event.message ? ` (${event.message})` : '';
-                        failStockfish(new Error('Không tải được Stockfish WebAssembly' + detail + '. Kiểm tra kết nối/CDN và mở trang qua localhost hoặc HTTPS.'), 'Lỗi tải engine');
-                    };
-                    setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
-                    engineInitTimer = setTimeout(() => {
-                        if (!stockfishReady) failStockfish(new Error('Stockfish không phản hồi khi khởi tạo.'), 'Engine hết thời gian chờ');
-                    }, 30000);
-                    stockfishWorker.postMessage('uci');
-                } catch (error) {
-                    setEngineStatus('Không tạo được engine', 'error');
-                    stockfishReady = false;
-                    stockfishWorker = null;
-                    stockfishInitResolve = null;
-                    stockfishInitReject = null;
-                    reject(error);
-                    // Defer clearing until after the Promise constructor has returned.
-                    setTimeout(() => { if (!stockfishReady) stockfishInitPromise = null; }, 0);
-                }
+                startStockfishCandidate(0);
             });
             return stockfishInitPromise;
+        }
+
+        function startStockfishCandidate(index) {
+            if (stockfishReady || !stockfishInitPromise) return;
+            clearTimeout(engineInitTimer);
+            releaseStockfishWorker();
+            if (index >= STOCKFISH_CANDIDATES.length) {
+                const why = stockfishLastLoadError ? ` Chi tiết cuối cùng: ${stockfishLastLoadError}` : '';
+                failStockfish(new Error('Đã thử các nguồn Stockfish dự phòng nhưng không khởi tạo được.' + why + ' Nhấn vào trạng thái engine để thử lại.'), 'Không tải được Stockfish');
+                return;
+            }
+
+            stockfishCandidateIndex = index;
+            const candidate = STOCKFISH_CANDIDATES[index];
+            const jsUrl = candidate.base + candidate.js;
+            const wasmUrl = candidate.wasm ? candidate.base + candidate.wasm : '';
+            setEngineStatus(`Đang thử engine ${index + 1}/${STOCKFISH_CANDIDATES.length}…`, 'loading', candidate.label);
+
+            const errorPrefix = '__STOCKFISH_BOOT_ERROR__:';
+            const workerSource = `
+                self.Module = self.Module || {};
+                self.Module.locateFile = function(path) {
+                    if (path && /\\.wasm(?:$|\\?)/i.test(path)) return ${JSON.stringify(wasmUrl)} || ${JSON.stringify(candidate.base)} + path;
+                    return ${JSON.stringify(candidate.base)} + path;
+                };
+                self.Module.onAbort = function(reason) {
+                    try { self.postMessage(${JSON.stringify(errorPrefix)} + 'WebAssembly abort: ' + String(reason || 'unknown')); } catch (_) {}
+                };
+                try {
+                    importScripts(${JSON.stringify(jsUrl)});
+                } catch (error) {
+                    self.postMessage(${JSON.stringify(errorPrefix)} + String(error && error.message || error));
+                }
+            `;
+
+            try {
+                stockfishWorkerBlobUrl = URL.createObjectURL(new Blob([workerSource], {type:'text/javascript'}));
+                const worker = new Worker(stockfishWorkerBlobUrl);
+                stockfishWorker = worker;
+                worker.onmessage = function(event) {
+                    if (stockfishCandidateIndex !== index) return;
+                    const raw = event && event.data !== undefined ? event.data : '';
+                    if (typeof raw === 'string' && raw.startsWith(errorPrefix)) {
+                        stockfishLastLoadError = raw.slice(errorPrefix.length).trim();
+                        startStockfishCandidate(index + 1);
+                        return;
+                    }
+                    String(raw).split(/\r?\n/).forEach(handleStockfishLine);
+                };
+                worker.onerror = function(event) {
+                    if (stockfishCandidateIndex !== index || stockfishReady) return;
+                    try { if (event && event.preventDefault) event.preventDefault(); } catch (_) {}
+                    stockfishLastLoadError = event && event.message ? event.message : 'Worker khởi tạo thất bại';
+                    startStockfishCandidate(index + 1);
+                };
+                worker.onmessageerror = function() {
+                    if (stockfishCandidateIndex !== index || stockfishReady) return;
+                    stockfishLastLoadError = 'Trình duyệt không giải mã được phản hồi từ Worker';
+                    startStockfishCandidate(index + 1);
+                };
+
+                // Give WASM CDN loads 12 s; the self-contained ASM-JS fallback gets longer.
+                const timeoutMs = candidate.wasm ? 12000 : 20000;
+                engineInitTimer = setTimeout(() => {
+                    if (stockfishCandidateIndex !== index || stockfishReady) return;
+                    stockfishLastLoadError = `${candidate.label} không trả lời uciok/readyok đúng hạn`;
+                    startStockfishCandidate(index + 1);
+                }, timeoutMs);
+                worker.postMessage('uci');
+            } catch (error) {
+                stockfishLastLoadError = error && error.message ? error.message : String(error);
+                startStockfishCandidate(index + 1);
+            }
+        }
+
+        function retryStockfish() {
+            if (stockfishReady) {
+                showToast('Stockfish đã sẵn sàng.');
+                return;
+            }
+            initStockfish().then(() => {
+                showToast('Stockfish đã tải thành công.');
+            }).catch(error => {
+                showToast((error && error.message) ? error.message : 'Không thể khởi tạo Stockfish.');
+            });
         }
 
         function handleStockfishLine(line) {
@@ -782,7 +857,7 @@
             if (line === 'readyok' && !stockfishReady) {
                 stockfishReady = true;
                 clearTimeout(engineInitTimer);
-                setEngineStatus('Stockfish 19 Lite sẵn sàng', 'ready');
+                setEngineStatus((STOCKFISH_CANDIDATES[stockfishCandidateIndex] || {}).label ? `${STOCKFISH_CANDIDATES[stockfishCandidateIndex].label} · sẵn sàng` : 'Stockfish sẵn sàng', 'ready');
                 if (stockfishInitResolve) stockfishInitResolve();
                 stockfishInitResolve = null;
                 stockfishInitReject = null;
@@ -1556,7 +1631,7 @@
                 updateAnalysisEvalBar(whiteEval);
                 document.getElementById('analysis-eval-badge').textContent=formatWhiteScore(fen,line);
                 document.getElementById('analysis-best-line').textContent=uciLineToSan(fen,line.pv,12);
-                document.getElementById('analysis-engine-meta').textContent=`Stockfish 19 Lite · depth ${line.depth || result.depth} · MultiPV ${result.lines.length}`;
+                document.getElementById('analysis-engine-meta').textContent=`${(STOCKFISH_CANDIDATES[stockfishCandidateIndex] || {}).label || 'Stockfish'} · depth ${line.depth || result.depth} · MultiPV ${result.lines.length}`;
                 const linesEl=document.getElementById('analysis-lines'); linesEl.innerHTML='';
                 result.lines.forEach((pv,index)=>{
                     const row=document.createElement('div'); row.className='engine-line-row';
@@ -1638,11 +1713,14 @@
             updateBotElo(1500);
             setEngineStatus('Đang tải Stockfish…', 'loading');
             initStockfish().then(() => {
-                document.getElementById('live-textbook-comment').textContent = 'Stockfish 19 Lite đã sẵn sàng. Đi một nước để nhận chấm điểm từ engine.';
+                const active = STOCKFISH_CANDIDATES[stockfishCandidateIndex];
+                const label = active ? active.label : 'Stockfish';
+                document.getElementById('live-textbook-comment').textContent = `${label} đã sẵn sàng. Đi một nước để nhận chấm điểm từ engine.`;
                 if (document.getElementById('view-analysis') && !document.getElementById('view-analysis').classList.contains('hidden')) renderAnalysisBoard();
-            }).catch(() => {
-                setEngineStatus('Lỗi tải engine', 'error');
-                document.getElementById('live-textbook-comment').textContent = 'Không tải được Stockfish từ CDN. Hãy kiểm tra internet và mở lại trang qua HTTPS/localhost.';
+            }).catch((error) => {
+                const detail = error && error.message ? error.message : 'Không có phản hồi từ các nguồn engine dự phòng.';
+                setEngineStatus('Không tải được engine', 'error', detail);
+                document.getElementById('live-textbook-comment').textContent = `Stockfish chưa khởi tạo được. Chi tiết: ${detail} Nhấn vào trạng thái engine để thử lại.`;
             });
         };
     </script>
