@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chess Lab Pro - Stockfish Analysis</title>
+    <meta name="description" content="Chess Lab Pro static GitHub Pages chess trainer with Stockfish analysis.">
+    <title>Chess Lab Pro - Stockfish Analysis (GitHub Pages)</title>
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -172,6 +173,16 @@
         .chessboard-review { width: min(380px, calc(100vw - 72px)); }
         .chessboard-analysis { width: min(540px, calc(100vw - 80px)); }
         .chessboard-grid > div { min-width: 0; min-height: 0; width: 100%; height: 100%; aspect-ratio: 1 / 1; overflow: hidden; }
+        /* Coordinates on every board: rank labels 1-8, file labels a-h. */
+        .chessboard-grid > div[data-rank-label]::before,
+        .chessboard-grid > div[data-file-label]::after {
+            position: absolute; z-index: 5; pointer-events: none;
+            font-family: 'Nunito', sans-serif; font-size: clamp(8px, 1.2vw, 12px);
+            line-height: 1; font-weight: 900; opacity: .94;
+            text-shadow: 0 1px 1px rgba(0,0,0,.12);
+        }
+        .chessboard-grid > div[data-rank-label]::before { content: attr(data-rank-label); top: 3px; left: 4px; }
+        .chessboard-grid > div[data-file-label]::after { content: attr(data-file-label); right: 4px; bottom: 3px; }
         .eval-bar-stack { width: 16px; flex: 0 0 16px; align-self: stretch; min-height: 0; }
         .eval-bar-stack > div { flex-shrink: 0; }
         #chessboard, #review-chessboard, #analysis-chessboard { touch-action: manipulation; }
@@ -679,15 +690,13 @@
         let latestPlayEvalWhite = 0;
         let botMoveInProgress = false;
 
-        // Stockfish fallback chain: try recent WASM builds on two CDNs, then ASM-JS.
-        // Lite single-threaded builds do not require COOP/COEP headers. ASM-JS is the final fallback.
+        // GitHub Pages-safe Stockfish loader.
+        // Use a Blob Worker that importScripts() the official single-threaded engine from a CDN.
+        // This avoids main-thread fetch + base64-embedding of the WASM binary, which is fragile and memory-heavy.
         const STOCKFISH_CANDIDATES = [
             {label:'Stockfish 19 Lite · jsDelivr', base:'https://cdn.jsdelivr.net/npm/stockfish@19.0.1/bin/', js:'stockfish-19-lite-single.js', wasm:'stockfish-19-lite-single.wasm'},
             {label:'Stockfish 19 Lite · unpkg', base:'https://unpkg.com/stockfish@19.0.1/bin/', js:'stockfish-19-lite-single.js', wasm:'stockfish-19-lite-single.wasm'},
-            {label:'Stockfish 18 Lite · jsDelivr', base:'https://cdn.jsdelivr.net/npm/stockfish@18.0.8/bin/', js:'stockfish-18-lite-single.js', wasm:'stockfish-18-lite-single.wasm'},
-            {label:'Stockfish 18 Lite · unpkg', base:'https://unpkg.com/stockfish@18.0.8/bin/', js:'stockfish-18-lite-single.js', wasm:'stockfish-18-lite-single.wasm'},
-            {label:'Stockfish 19 ASM-JS · jsDelivr', base:'https://cdn.jsdelivr.net/npm/stockfish@19.0.1/bin/', js:'stockfish-19-asm.js', wasm:null},
-            {label:'Stockfish 19 ASM-JS · unpkg', base:'https://unpkg.com/stockfish@19.0.1/bin/', js:'stockfish-19-asm.js', wasm:null}
+            {label:'Stockfish 19 ASM-JS · jsDelivr', base:'https://cdn.jsdelivr.net/npm/stockfish@19.0.1/bin/', js:'stockfish-19-asm.js', wasm:null}
         ];
         let stockfishWorker = null;
         let stockfishWorkerBlobUrl = null;
@@ -728,70 +737,78 @@
             }
         }
 
-        function failStockfish(error, label='Không tải được Stockfish') {
-            const failure = error instanceof Error ? error : new Error(String(error || 'Engine không phản hồi.'));
+        function failStockfish(error, label='Stockfish lỗi') {
             clearTimeout(engineInitTimer);
             engineInitTimer = null;
-            const rejectInit = stockfishInitReject;
-            const active = activeEngineJob;
-            if (active && active.timeout) clearTimeout(active.timeout);
-            const queued = stockfishQueue.splice(0);
-            activeEngineJob = null;
+            releaseStockfishWorker();
             stockfishReady = false;
-            stockfishInitPromise = null;
+            setEngineStatus(label, 'error', error && error.message ? error.message : String(error));
+            if (activeEngineJob) {
+                clearTimeout(activeEngineJob.timeout);
+                try { activeEngineJob.reject(error); } catch (_) {}
+                activeEngineJob = null;
+            }
+            const queued = stockfishQueue.splice(0);
+            queued.forEach(job => { try { job.reject(error); } catch (_) {} });
+            const reject = stockfishInitReject;
             stockfishInitResolve = null;
             stockfishInitReject = null;
-            releaseStockfishWorker();
-            setEngineStatus(label, 'error', failure.message);
-            if (rejectInit) rejectInit(failure);
-            if (active && typeof active.reject === 'function') active.reject(failure);
-            queued.forEach(job => { try { job.reject(failure); } catch (_) {} });
+            stockfishInitPromise = null;
+            if (reject) reject(error);
         }
 
         function initStockfish() {
-            if (stockfishReady && stockfishWorker) return Promise.resolve();
+            if (stockfishReady) return Promise.resolve();
             if (stockfishInitPromise) return stockfishInitPromise;
-            stockfishReady = false;
             stockfishLastLoadError = '';
-            setEngineStatus('Đang tải Stockfish…', 'loading');
             stockfishInitPromise = new Promise((resolve, reject) => {
                 stockfishInitResolve = resolve;
                 stockfishInitReject = reject;
-                startStockfishCandidate(0);
             });
+            // Start only after assigning stockfishInitPromise; the candidate guard checks it.
+            startStockfishCandidate(0);
             return stockfishInitPromise;
         }
 
         function startStockfishCandidate(index) {
             if (stockfishReady || !stockfishInitPromise) return;
             clearTimeout(engineInitTimer);
+            engineInitTimer = null;
             releaseStockfishWorker();
+
             if (index >= STOCKFISH_CANDIDATES.length) {
-                const why = stockfishLastLoadError ? ` Chi tiết cuối cùng: ${stockfishLastLoadError}` : '';
-                failStockfish(new Error('Đã thử các nguồn Stockfish dự phòng nhưng không khởi tạo được.' + why + ' Nhấn vào trạng thái engine để thử lại.'), 'Không tải được Stockfish');
+                const detail = stockfishLastLoadError ? ` Chi tiết: ${stockfishLastLoadError}.` : '';
+                failStockfish(new Error('Không khởi tạo được Stockfish trên GitHub Pages.' + detail + ' Kiểm tra Console, kết nối mạng và thử tải lại trang.'), 'Không tải được Stockfish');
                 return;
             }
 
             stockfishCandidateIndex = index;
             const candidate = STOCKFISH_CANDIDATES[index];
-            const jsUrl = candidate.base + candidate.js;
-            const wasmUrl = candidate.wasm ? candidate.base + candidate.wasm : '';
-            setEngineStatus(`Đang thử engine ${index + 1}/${STOCKFISH_CANDIDATES.length}…`, 'loading', candidate.label);
-
+            const jsUrl = new URL(candidate.js, candidate.base).href;
             const errorPrefix = '__STOCKFISH_BOOT_ERROR__:';
+            const timeoutMs = candidate.wasm ? 16000 : 10000;
+            setEngineStatus(`Khởi tạo Stockfish ${index + 1}/${STOCKFISH_CANDIDATES.length}…`, 'loading', candidate.label);
+
+            engineInitTimer = setTimeout(() => {
+                if (stockfishCandidateIndex !== index || stockfishReady || !stockfishInitPromise) return;
+                stockfishLastLoadError = `${candidate.label}: hết thời gian chờ ${Math.round(timeoutMs/1000)} giây`;
+                startStockfishCandidate(index + 1);
+            }, timeoutMs);
+
+            // Use the CDN's canonical JS+WASM files from inside the Worker, instead of
+            // downloading the WASM into the page and converting it to a large base64 string.
             const workerSource = `
                 self.Module = self.Module || {};
                 self.Module.locateFile = function(path) {
-                    if (path && /\\.wasm(?:$|\\?)/i.test(path)) return ${JSON.stringify(wasmUrl)} || ${JSON.stringify(candidate.base)} + path;
-                    return ${JSON.stringify(candidate.base)} + path;
+                    return new URL(path, ${JSON.stringify(candidate.base)}).href;
                 };
                 self.Module.onAbort = function(reason) {
-                    try { self.postMessage(${JSON.stringify(errorPrefix)} + 'WebAssembly abort: ' + String(reason || 'unknown')); } catch (_) {}
+                    try { self.postMessage(${JSON.stringify(errorPrefix)} + 'Engine abort: ' + String(reason || 'unknown')); } catch (_) {}
                 };
                 try {
                     importScripts(${JSON.stringify(jsUrl)});
                 } catch (error) {
-                    self.postMessage(${JSON.stringify(errorPrefix)} + String(error && error.message || error));
+                    try { self.postMessage(${JSON.stringify(errorPrefix)} + (error && error.message ? error.message : String(error))); } catch (_) {}
                 }
             `;
 
@@ -807,27 +824,19 @@
                         startStockfishCandidate(index + 1);
                         return;
                     }
-                    String(raw).split(/\r?\n/).forEach(handleStockfishLine);
+                    String(raw).split(String.fromCharCode(10)).forEach(handleStockfishLine);
                 };
                 worker.onerror = function(event) {
                     if (stockfishCandidateIndex !== index || stockfishReady) return;
                     try { if (event && event.preventDefault) event.preventDefault(); } catch (_) {}
-                    stockfishLastLoadError = event && event.message ? event.message : 'Worker khởi tạo thất bại';
+                    stockfishLastLoadError = (event && event.message) || (event && event.filename ? `${event.filename}:${event.lineno || 0}` : 'Worker không khởi động được');
                     startStockfishCandidate(index + 1);
                 };
                 worker.onmessageerror = function() {
                     if (stockfishCandidateIndex !== index || stockfishReady) return;
-                    stockfishLastLoadError = 'Trình duyệt không giải mã được phản hồi từ Worker';
+                    stockfishLastLoadError = 'Không giải mã được dữ liệu gửi từ Worker';
                     startStockfishCandidate(index + 1);
                 };
-
-                // Give WASM CDN loads 12 s; the self-contained ASM-JS fallback gets longer.
-                const timeoutMs = candidate.wasm ? 12000 : 20000;
-                engineInitTimer = setTimeout(() => {
-                    if (stockfishCandidateIndex !== index || stockfishReady) return;
-                    stockfishLastLoadError = `${candidate.label} không trả lời uciok/readyok đúng hạn`;
-                    startStockfishCandidate(index + 1);
-                }, timeoutMs);
                 worker.postMessage('uci');
             } catch (error) {
                 stockfishLastLoadError = error && error.message ? error.message : String(error);
@@ -1026,6 +1035,8 @@
                     const sqDiv = document.createElement('div');
                     sqDiv.className = `w-full h-full flex items-center justify-center relative cursor-pointer ${(r + c) % 2 === 0 ? 'sq-light' : 'sq-dark'}`;
                     sqDiv.dataset.square = sqId;
+                    if (c === 0) sqDiv.dataset.rankLabel = String(8 - actualR);
+                    if (r === 7) sqDiv.dataset.fileLabel = String.fromCharCode(97 + actualC);
                     if (selectedSquare === sqId) sqDiv.classList.add('hl-selected');
                     const history = game.history({verbose:true});
                     if (history.length) {
@@ -1403,6 +1414,9 @@
                     const piece = board[r][c];
                     const sqDiv = document.createElement('div');
                     sqDiv.className = `w-full h-full flex items-center justify-center relative ${(r+c)%2===0 ? 'sq-light' : 'sq-dark'}`;
+                    sqDiv.dataset.square = sqId;
+                    if (c === 0) sqDiv.dataset.rankLabel = String(8 - r);
+                    if (r === 7) sqDiv.dataset.fileLabel = String.fromCharCode(97 + c);
                     if (reviewHistory.length && reviewCurrentIdx > 0) {
                         const prev = reviewHistory[reviewCurrentIdx-1];
                         if (prev && (prev.from === sqId || prev.to === sqId)) sqDiv.classList.add('hl-lastmove');
@@ -1564,6 +1578,9 @@
                     const piece = board[r][c];
                     const sqDiv = document.createElement('div');
                     sqDiv.className = `w-full h-full flex items-center justify-center relative cursor-pointer ${(r+c)%2===0 ? 'sq-light' : 'sq-dark'}`;
+                    sqDiv.dataset.square = sqId;
+                    if (c === 0) sqDiv.dataset.rankLabel = String(8 - r);
+                    if (r === 7) sqDiv.dataset.fileLabel = String.fromCharCode(97 + c);
                     if (analysisSelectedSquare===sqId) sqDiv.classList.add('analysis-square-selected');
                     if (analysisPossibleMoves.includes(sqId)) sqDiv.classList.add(piece ? 'analysis-square-capture' : 'analysis-square-legal');
                     if (piece) {
