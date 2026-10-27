@@ -792,12 +792,17 @@
                     slot.failed = true;
                     slot.ready = false;
                     const message = event && event.message ? String(event.message) : 'Worker lỗi không có chi tiết.';
-                    try { slot.worker.terminate(); } catch (_) {}
+                    const failedWorker = slot.worker;
+                    try { if (failedWorker) failedWorker.terminate(); } catch (_) {}
                     slot.worker = null;
                     localEngineReady = getReadyEngineWorkers().length > 0;
-                    if (localEngineWorker === slot.worker || !localEngineWorker) {
+                    if (localEngineWorker === failedWorker || !localEngineWorker) {
                         const replacement = getReadyEngineWorkers()[0];
                         localEngineWorker = replacement ? replacement.worker : null;
+                    }
+                    if (!localEngineReady && settled) {
+                        localEngineInitPromise = null;
+                        localEngineWorkers = localEngineWorkers.filter(item => !item.failed && item.worker);
                     }
                     for (const [id,pending] of localEnginePending) {
                         if (pending.slot !== slot) continue;
@@ -819,7 +824,7 @@
                     try {
                         worker = new Worker(new URL('./engine/vti-engine-adapter.worker.js', window.location.href));
                     } catch (error) {
-                        if (attempted >= targetCount && !getReadyEngineWorkers().length) {
+                        if (attempted >= targetCount && !localEngineWorkers.some(item => !item.failed && item.worker)) {
                             finish(new Error('Trình duyệt không tạo được Web Worker: ' + (error.message || String(error))));
                         }
                         return;
