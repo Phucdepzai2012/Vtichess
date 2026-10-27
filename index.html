@@ -692,13 +692,46 @@
 
         // Stockfish WASM runs in the browser; the VtiChess JS search worker is the offline fallback.
         let localEngineWorker = null;
+        let localEngineWorkers = [];
         let localEngineReady = false;
         let localEngineInitPromise = null;
-        let localEngineRequestChain = Promise.resolve();
         let localEngineRequestId = 0;
         const localEnginePending = new Map();
-        const LOCAL_ENGINE_TIMEOUT_MS = 12000;
+        const LOCAL_ENGINE_TIMEOUT_MS = 25000;
         const LOCAL_ENGINE_CACHE = new Map();
+
+        // Use a small pool of independent CPU workers. Keep mobile devices at two
+        // engines max so analysis does not consume all memory or make the UI unresponsive.
+        function getDesiredEngineWorkerCount() {
+            const cores = Math.max(1, Number(navigator.hardwareConcurrency) || 2);
+            const coarsePointer = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
+            if (cores <= 2) return 1;
+            if (cores <= 4) return 2;
+            return coarsePointer ? 2 : 3;
+        }
+
+        function getReadyEngineWorkers() {
+            return localEngineWorkers.filter(slot => slot.ready && !slot.failed && slot.worker);
+        }
+
+        function chooseEngineWorker() {
+            const ready = getReadyEngineWorkers();
+            ready.sort((a,b) => a.pendingCount - b.pendingCount);
+            return ready[0] || null;
+        }
+
+        function updateEnginePoolStatus(preferredLabel, detail='') {
+            const ready = getReadyEngineWorkers();
+            const stockfishCount = ready.filter(slot => String(slot.label || '').includes('Stockfish')).length;
+            if (stockfishCount > 0) {
+                const label = 'Stockfish 18.0.8 · CPU workers ' + stockfishCount + '/' + ready.length;
+                setEngineStatus(label + ' · sẵn sàng', 'ready',
+                    detail || ('Đang dùng ' + stockfishCount + ' worker CPU; số worker phụ thuộc tài nguyên thiết bị.'));
+            } else {
+                setEngineStatus((preferredLabel || 'VtiChess JS dự phòng') + ' · sẵn sàng', 'ready',
+                    detail || 'Đang phân tích cục bộ trên CPU.');
+            }
+        }
 
         function setEngineStatus(text, state='loading', detail='') {
             const pill = document.getElementById('engine-status');
@@ -727,46 +760,99 @@
         }
 
         function ensureLocalEngine() {
-            if (localEngineWorker && localEngineReady) return Promise.resolve();
+            if (localEngineReady && getReadyEngineWorkers().length) return Promise.resolve();
             if (localEngineInitPromise) return localEngineInitPromise;
-            localEngineInitPromise = new Promise((resolve, reject) => {
+
+            localEngineInitPromise = new Promise((resolve,reject) => {
                 let settled = false;
-                let engineLabel = 'VtiChess Engine';
-                const finish = (err) => {
+                let attempted = 0;
+                const targetCount = getDesiredEngineWorkerCount();
+                const readyTimer = setTimeout(() => {
+                    if (getReadyEngineWorkers().length) finish(null);
+                    else finish(new Error('Không khởi động được engine CPU. Kiểm tra đường dẫn engine và tải lại trang.'));
+                }, 12000);
+
+                function finish(error) {
                     if (settled) return;
                     settled = true;
                     clearTimeout(readyTimer);
-                    if (err) {
+                    if (error) {
                         localEngineReady = false;
-                        setEngineStatus('VtiChess Engine · lỗi khởi tạo', 'error', err.message || String(err));
-                        reject(err);
+                        setEngineStatus('VtiChess Engine · lỗi khởi tạo', 'error', error.message || String(error));
+                        reject(error);
                     } else {
                         localEngineReady = true;
-                        setEngineStatus(`${engineLabel} · sẵn sàng`, 'ready');
+                        updateEnginePoolStatus();
                         resolve();
                     }
-                };
-                const readyTimer = setTimeout(() => finish(new Error(
-                    'Không khởi tạo được engine trong 8 giây. Kiểm tra engine/vti-engine-adapter.worker.js và engine/vti-engine.worker.js.'
-                )), 8000);
-                try {
-                    localEngineWorker = new Worker(new URL('./engine/vti-engine-adapter.worker.js', window.location.href));
-                    localEngineWorker.onmessage = (event) => {
+                }
+
+                function handleWorkerFailure(slot,event) {
+                    if (slot.failed) return;
+                    slot.failed = true;
+                    slot.ready = false;
+                    const message = event && event.message ? String(event.message) : 'Worker lỗi không có chi tiết.';
+                    try { slot.worker.terminate(); } catch (_) {}
+                    slot.worker = null;
+                    localEngineReady = getReadyEngineWorkers().length > 0;
+                    if (localEngineWorker === slot.worker || !localEngineWorker) {
+                        const replacement = getReadyEngineWorkers()[0];
+                        localEngineWorker = replacement ? replacement.worker : null;
+                    }
+                    for (const [id,pending] of localEnginePending) {
+                        if (pending.slot !== slot) continue;
+                        clearTimeout(pending.timer);
+                        localEnginePending.delete(id);
+                        slot.pendingCount = Math.max(0,slot.pendingCount-1);
+                        pending.reject(new Error('Engine worker gặp lỗi: ' + message));
+                    }
+                    if (!localEngineReady && !settled && attempted >= targetCount) {
+                        finish(new Error('Không khởi động được engine CPU: ' + message));
+                    } else if (localEngineReady) {
+                        updateEnginePoolStatus('VtiChess JS dự phòng', message);
+                    }
+                }
+
+                function startWorker(index) {
+                    attempted++;
+                    let worker;
+                    try {
+                        worker = new Worker(new URL('./engine/vti-engine-adapter.worker.js', window.location.href));
+                    } catch (error) {
+                        if (attempted >= targetCount && !getReadyEngineWorkers().length) {
+                            finish(new Error('Trình duyệt không tạo được Web Worker: ' + (error.message || String(error))));
+                        }
+                        return;
+                    }
+                    const slot = {worker,index,ready:false,failed:false,pendingCount:0,label:'VtiChess Engine'};
+                    localEngineWorkers.push(slot);
+                    if (!localEngineWorker) localEngineWorker = worker;
+
+                    worker.onmessage = (event) => {
                         const msg = event.data || {};
                         if (msg.type === 'engine') {
-                            engineLabel = msg.engine || engineLabel;
-                            setEngineStatus(`${engineLabel} · sẵn sàng`, 'ready', msg.detail || 'Engine phân tích ngay trên thiết bị.');
-                            if (engineLabel.includes('dự phòng') && msg.detail) {
+                            slot.label = msg.engine || slot.label;
+                            updateEnginePoolStatus(slot.label,msg.detail || '');
+                            if (String(slot.label).includes('dự phòng') && msg.detail) {
                                 const comment = document.getElementById('live-textbook-comment');
-                                if (comment) comment.textContent = `Stockfish không khởi chạy; VtiChess đang dùng engine dự phòng. Chi tiết: ${msg.detail}`;
+                                if (comment) comment.textContent = 'Stockfish không khởi chạy; VtiChess đang dùng engine dự phòng. Chi tiết: ' + msg.detail;
                             }
                             return;
                         }
-                        if (msg.type === 'ready') { engineLabel = msg.engine || engineLabel; finish(null); return; }
+                        if (msg.type === 'ready') {
+                            if (!slot.ready && !slot.failed) {
+                                slot.ready = true;
+                                localEngineReady = true;
+                            }
+                            slot.label = msg.engine || slot.label;
+                            if (!settled) finish(null);
+                            else updateEnginePoolStatus(slot.label);
+                            return;
+                        }
                         if (msg.type === 'progress') {
-                            engineLabel = msg.engine || engineLabel;
-                            setEngineStatus(`${engineLabel} đang tính · độ sâu ${msg.depth}`, 'loading',
-                                `Đã xét khoảng ${Number(msg.nodes || 0).toLocaleString('vi-VN')} nút.`);
+                            slot.label = msg.engine || slot.label;
+                            setEngineStatus(slot.label + ' đang tính · độ sâu ' + msg.depth, 'loading',
+                                'Đã xét khoảng ' + Number(msg.nodes || 0).toLocaleString('vi-VN') + ' nút.');
                             return;
                         }
                         if (msg.type === 'error') {
@@ -774,6 +860,7 @@
                             if (pending) {
                                 clearTimeout(pending.timer);
                                 localEnginePending.delete(msg.id);
+                                slot.pendingCount = Math.max(0,slot.pendingCount-1);
                                 pending.reject(new Error(msg.message || 'Engine nội bộ gặp lỗi.'));
                             }
                             return;
@@ -783,42 +870,30 @@
                             if (!pending) return;
                             clearTimeout(pending.timer);
                             localEnginePending.delete(msg.id);
-                            const lines = (msg.lines || []).map((line, index) =>
-                                localScoreLine(line.score, line.pv, msg.depth, index + 1));
+                            slot.pendingCount = Math.max(0,slot.pendingCount-1);
+                            const lines = (msg.lines || []).map((line,index) =>
+                                localScoreLine(line.score,line.pv,msg.depth,index+1));
                             const chosenLine = lines.find(line => line.pv && line.pv.startsWith(msg.bestmove));
-                            const chosen = localScoreLine(msg.score, chosenLine ? chosenLine.pv : msg.bestmove, msg.depth, 1);
-                            engineLabel = msg.engine || engineLabel;
-                            setEngineStatus(`${engineLabel} · sẵn sàng`, 'ready',
-                                `Depth ${msg.depth} · ${Number(msg.nodes || 0).toLocaleString('vi-VN')} nút · phân tích trên thiết bị.`);
+                            const chosen = localScoreLine(msg.score,chosenLine ? chosenLine.pv : msg.bestmove,msg.depth,1);
+                            slot.label = msg.engine || slot.label;
+                            updateEnginePoolStatus(slot.label,
+                                'Depth ' + msg.depth + ' · ' + Number(msg.nodes || 0).toLocaleString('vi-VN') + ' nút · chạy trên CPU thiết bị.');
                             pending.resolve({
-                                bestmove:msg.bestmove || '(none)', lines:lines.length ? lines : [chosen],
-                                fen:msg.fen, depth:msg.depth || 1, nodes:msg.nodes || 0,
-                                source:msg.engine || 'VtiChess JS Engine', engine:msg.engine || 'VtiChess JS Engine', score:chosen
+                                bestmove:msg.bestmove || '(none)',lines:lines.length ? lines : [chosen],
+                                fen:msg.fen,depth:msg.depth || 1,nodes:msg.nodes || 0,
+                                source:msg.engine || 'VtiChess JS Engine',engine:msg.engine || 'VtiChess JS Engine',score:chosen
                             });
                         }
                     };
-                    localEngineWorker.onerror = (event) => {
-                        const error = new Error('Engine worker gặp lỗi: ' +
-                            (event.message || 'Kiểm tra đường dẫn engine/vti-engine-adapter.worker.js.'));
-                        localEngineReady = false;
-                        localEngineInitPromise = null;
-                        const failedWorker = localEngineWorker;
-                        localEngineWorker = null;
-                        if (failedWorker) { try { failedWorker.terminate(); } catch (_) {} }
-                        setEngineStatus('VtiChess Engine · lỗi, bấm để thử lại', 'error', error.message);
-                        finish(error);
-                        for (const [id, pending] of localEnginePending) {
-                            clearTimeout(pending.timer);
-                            pending.reject(error);
-                            localEnginePending.delete(id);
-                        }
-                    };
-                } catch (error) {
-                    finish(new Error('Trình duyệt không tạo được Web Worker: ' + (error.message || String(error))));
+                    worker.onerror = (event) => handleWorkerFailure(slot,event);
+                    worker.onmessageerror = () => handleWorkerFailure(slot,{message:'Không đọc được thông điệp từ worker.'});
                 }
+
+                for (let index=0;index<targetCount;index++) startWorker(index);
+                if (attempted === 0) finish(new Error('Trình duyệt không tạo được Web Worker.'));
             }).catch(error => {
                 localEngineInitPromise = null;
-                localEngineWorker = null;
+                localEngineWorker = getReadyEngineWorkers()[0]?.worker || null;
                 throw error;
             });
             return localEngineInitPromise;
@@ -846,41 +921,46 @@
             const safeDepth = Math.max(1, Math.min(15, Number(depth) || 4));
             const safeMultiPV = Math.max(1, Math.min(3, Number(multiPV) || 1));
             const timeMs = options && options.timeMs !== undefined && options.timeMs !== null ? Number(options.timeMs) : null;
-            const cacheKey = [String(fen), safeDepth, safeMultiPV,
-                Number.isFinite(botLevel) ? 'bot'+botLevel : 'analysis', timeMs === null ? 'defaultTime' : timeMs].join('|');
+            const cacheKey = [String(fen),safeDepth,safeMultiPV,
+                Number.isFinite(botLevel) ? 'bot'+botLevel : 'analysis',
+                timeMs === null ? 'defaultTime' : timeMs].join('|');
             if (LOCAL_ENGINE_CACHE.has(cacheKey)) return Promise.resolve(LOCAL_ENGINE_CACHE.get(cacheKey));
-            const run = async () => {
+
+            const task = (async () => {
                 await ensureLocalEngine();
+                const slot = chooseEngineWorker();
+                if (!slot || !slot.worker) throw new Error('Không có CPU worker sẵn sàng để phân tích.');
                 const id = ++localEngineRequestId;
-                setEngineStatus('VtiChess đang phân tích…', 'loading');
-                return new Promise((resolve, reject) => {
+                setEngineStatus('VtiChess đang phân tích trên CPU…','loading');
+                slot.pendingCount++;
+                return new Promise((resolve,reject) => {
                     const timer = setTimeout(() => {
                         localEnginePending.delete(id);
-                        reject(new Error('Engine nội bộ quá thời gian 12 giây. Hãy thử lại với thế cờ đơn giản hơn.'));
-                    }, LOCAL_ENGINE_TIMEOUT_MS);
-                    localEnginePending.set(id, {resolve, reject, timer});
+                        slot.pendingCount = Math.max(0,slot.pendingCount-1);
+                        reject(new Error('Engine nội bộ quá thời gian 25 giây. Hãy thử lại hoặc giảm độ sâu.'));
+                    },LOCAL_ENGINE_TIMEOUT_MS);
+                    localEnginePending.set(id,{resolve,reject,timer,slot});
                     try {
-                        localEngineWorker.postMessage({type:'analyze',id,fen:String(fen),
+                        slot.worker.postMessage({type:'analyze',id,fen:String(fen),
                             depth:safeDepth,multiPV:safeMultiPV,
                             botLevel:Number.isFinite(botLevel)?botLevel:null,
                             timeMs:Number.isFinite(timeMs)?timeMs:null});
                     } catch (error) {
                         clearTimeout(timer);
                         localEnginePending.delete(id);
+                        slot.pendingCount = Math.max(0,slot.pendingCount-1);
                         reject(error);
                     }
                 });
-            };
-            const task = localEngineRequestChain.then(run, run).then(result => {
-                LOCAL_ENGINE_CACHE.set(cacheKey, result);
+            })().then(result => {
+                LOCAL_ENGINE_CACHE.set(cacheKey,result);
                 if (LOCAL_ENGINE_CACHE.size > 250) LOCAL_ENGINE_CACHE.delete(LOCAL_ENGINE_CACHE.keys().next().value);
                 return result;
             }).catch(error => {
-                setEngineStatus('VtiChess Engine · bấm để thử lại', 'error',
+                setEngineStatus('VtiChess Engine · bấm để thử lại','error',
                     error && error.message ? error.message : String(error));
                 throw error;
             });
-            localEngineRequestChain = task.catch(() => {});
             return task;
         }
 
@@ -1469,15 +1549,29 @@
                     moves.push({move:played,beforeFen,afterFen});
                     positions.push({fen:afterFen});
                 }
-                const scores = [];
-                // Spend less time per position on long games so the full review finishes promptly.
-                const reviewTimeMs = positions.length > 70 ? 120 : positions.length > 35 ? 180 : 260;
-                for (let i=0;i<positions.length;i++) {
-                    const result = await analyzeFen(positions[i].fen, 9, 1, {timeMs:reviewTimeMs});
-                    const line = primaryLine(result);
-                    scores.push({fen:positions[i].fen, line, sideScore:line.cpEquivalent, whiteEval:scoreInWhitePerspective(positions[i].fen,line), result, timeMs:reviewTimeMs});
-                    document.getElementById('review-analysis-progress').textContent = `${i+1}/${positions.length} vị trí`;
-                    drawReviewEvalGraph(scores);
+                const scores = new Array(positions.length);
+                // Each CPU worker analyzes a different position concurrently. This accelerates
+                // whole-game review without pretending one Stockfish search is GPU-accelerated.
+                for (let start=0;start<positions.length;) {
+                    const batchSize = Math.max(1,getReadyEngineWorkers().length);
+                    const end = Math.min(positions.length,start+batchSize);
+                    const results = await Promise.all(positions.slice(start,end).map((position,index) =>
+                        analyzeFen(position.fen,9,1,{timeMs:reviewTimeMs}).then(result => ({index:start+index,result}))
+                    ));
+                    for (const item of results) {
+                        const positionIndex = item.index;
+                        const result = item.result;
+                        const line = primaryLine(result);
+                        scores[positionIndex] = {
+                            fen:positions[positionIndex].fen,line,sideScore:line.cpEquivalent,
+                            whiteEval:scoreInWhitePerspective(positions[positionIndex].fen,line),
+                            result,timeMs:reviewTimeMs
+                        };
+                    }
+                    start = end;
+                    const progressEl = document.getElementById('review-analysis-progress');
+                    if (progressEl) progressEl.textContent = start + '/' + positions.length + ' vị trí · CPU song song';
+                    drawReviewEvalGraph(scores.slice(0,start));
                 }
 
                 // Re-check only the most suspicious moves with a longer budget. Most positions
@@ -1502,17 +1596,26 @@
                 if (verifyPositions.size) {
                     const verifyList = Array.from(verifyPositions).sort((a,b)=>a-b);
                     const progressEl = document.getElementById('review-analysis-progress');
-                    for (let n=0;n<verifyList.length;n++) {
-                        const positionIndex = verifyList[n];
-                        const result = await analyzeFen(positions[positionIndex].fen, 12, 1, {timeMs:verifyTimeMs});
-                        const line = primaryLine(result);
-                        scores[positionIndex] = {
-                            fen:positions[positionIndex].fen, line, sideScore:line.cpEquivalent,
-                            whiteEval:scoreInWhitePerspective(positions[positionIndex].fen,line),
-                            result, timeMs:verifyTimeMs
-                        };
-                        if (progressEl) progressEl.textContent = `Xác minh ${n+1}/${verifyList.length} vị trí nghi ngờ`;
-                        drawReviewEvalGraph(scores);
+                    for (let n=0;n<verifyList.length;) {
+                        const batchSize = Math.max(1,getReadyEngineWorkers().length);
+                        const batch = verifyList.slice(n,n+batchSize);
+                        const verified = await Promise.all(batch.map(positionIndex =>
+                            analyzeFen(positions[positionIndex].fen,12,1,{timeMs:verifyTimeMs})
+                                .then(result => ({positionIndex,result}))
+                        ));
+                        for (const item of verified) {
+                            const positionIndex = item.positionIndex;
+                            const result = item.result;
+                            const line = primaryLine(result);
+                            scores[positionIndex] = {
+                                fen:positions[positionIndex].fen,line,sideScore:line.cpEquivalent,
+                                whiteEval:scoreInWhitePerspective(positions[positionIndex].fen,line),
+                                result,timeMs:verifyTimeMs
+                            };
+                        }
+                        n += batch.length;
+                        if (progressEl) progressEl.textContent = 'Xác minh ' + n + '/' + verifyList.length + ' vị trí nghi ngờ · CPU song song';
+                        drawReviewEvalGraph(scores.filter(Boolean));
                     }
                 }
 
