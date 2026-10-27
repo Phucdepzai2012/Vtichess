@@ -1721,9 +1721,9 @@
         window.onload = function() {
             renderPlayBoard();
             updateBotElo(1500);
-            setEngineStatus('Stockfish WASM · đang khởi tạo', 'loading', 'Tìm kiếm chạy trên thiết bị; không gửi thế cờ lên API phân tích.');
+            setEngineStatus('Stockfish 18.0.8 Lite Single · đang khởi tạo', 'loading', 'Đang nạp Stockfish 18.0.8 Lite Single. Nếu không tải được, VtiChess JS dự phòng vẫn hoạt động.');
             document.getElementById('live-textbook-comment').textContent =
-                'Stockfish chạy trong trình duyệt; VtiChess JS sẽ tự dùng nếu Stockfish không tải được.';
+                'Stockfish 18.0.8 chạy trong trình duyệt; VtiChess JS sẽ tự dùng nếu Stockfish không tải được.';
             ensureLocalEngine().catch(error => {
                 document.getElementById('live-textbook-comment').textContent =
                     'Engine khởi tạo lỗi: ' + (error.message || error);
