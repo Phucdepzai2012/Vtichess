@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Chess Lab Pro static GitHub Pages chess trainer with Stockfish analysis.">
-    <title>Chess Lab Pro - Stockfish Online API (GitHub Pages)</title>
+    <meta name="description" content="Chess Lab Pro static GitHub Pages chess trainer with VtiChess analysis.">
+    <title>Chess Lab Pro - VtiChess Online API (GitHub Pages)</title>
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -236,7 +236,7 @@
                 </button>
                 <button onclick="switchTab('analysis')" id="nav-analysis" class="nav-btn flex items-center gap-3 px-3 py-3 rounded-xl text-chess-textMuted hover:bg-chess-hover hover:text-chess-textLight font-bold transition text-left">
                     <i class="fa-solid fa-microchip text-amber-400 w-5 text-center text-lg"></i>
-                    <span class="hidden lg:inline text-sm">Bàn phân tích Stockfish</span>
+                    <span class="hidden lg:inline text-sm">Bàn phân tích VtiChess</span>
                 </button>
                 <button onclick="switchTab('settings')" id="nav-settings" class="nav-btn flex items-center gap-3 px-3 py-3 rounded-xl text-chess-textMuted hover:bg-chess-hover hover:text-chess-textLight font-bold transition text-left">
                     <i class="fa-solid fa-sliders text-purple-400 w-5 text-center text-lg"></i>
@@ -264,9 +264,9 @@
         <header class="h-14 border-b border-chess-border bg-chess-card px-4 lg:px-6 flex items-center justify-between shrink-0">
             <div class="flex items-center gap-3 min-w-0">
                 <span id="current-mode-title" class="text-base font-extrabold text-chess-textLight flex items-center gap-2">
-                    <i class="fa-solid fa-robot text-chess-green"></i> Đấu Cờ Với Stockfish Bot
+                    <i class="fa-solid fa-robot text-chess-green"></i> Đấu Cờ Với VtiChess Bot
                 </span>
-                <span id="engine-status" class="engine-status" role="button" tabindex="0" onclick="retryStockfish()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();retryStockfish();}" title="Nhấn để kiểm tra hoặc thử lại Stockfish Online API"><span class="engine-status-dot"></span><span id="engine-status-text">Stockfish Online API · chưa kiểm tra</span></span>
+                <span id="engine-status" class="engine-status" role="button" tabindex="0" onclick="retryVtiChess()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();retryVtiChess();}" title="Nhấn để kiểm tra hoặc thử lại VtiChess Online API"><span class="engine-status-dot"></span><span id="engine-status-text">VtiChess Online API · chưa kiểm tra</span></span>
             </div>
             <div class="flex items-center gap-2">
                 <button onclick="toggleAudio()" id="sound-btn" class="px-3 py-1.5 rounded-lg bg-chess-panel hover:bg-chess-hover text-chess-textLight text-xs font-bold transition flex items-center gap-2 border border-chess-border">
@@ -317,7 +317,7 @@
                                 <i class="fa-solid fa-robot"></i>
                             </div>
                             <div>
-                                <h3 id="bot-name-display" class="font-extrabold text-chess-textLight text-base">Stockfish Bot</h3>
+                                <h3 id="bot-name-display" class="font-extrabold text-chess-textLight text-base">VtiChess Bot</h3>
                                 <p class="text-xs text-chess-green font-bold" id="bot-elo-badge">Cấp độ: 1500</p>
                             </div>
                         </div>
@@ -518,19 +518,19 @@
                 </div>
                 <div class="w-full 2xl:w-96 bg-chess-card rounded-2xl border border-chess-border p-5 flex flex-col gap-4 shadow-2xl">
                     <h3 class="font-extrabold text-chess-textLight text-base flex items-center gap-2">
-                        <i class="fa-solid fa-microchip text-amber-400"></i> Bàn Phân Tích Stockfish
+                        <i class="fa-solid fa-microchip text-amber-400"></i> Bàn Phân Tích VtiChess
                     </h3>
                     <p class="text-xs text-chess-textMuted font-semibold">Tự do xếp cờ, thử nghiệm các biến thế mở màn và xem nước đi đề xuất tốt nhất từ engine.</p>
                     <div class="bg-chess-panel p-4 rounded-xl border border-chess-border flex flex-col gap-2">
                         <div class="flex justify-between text-xs font-extrabold">
-                            <span class="text-chess-textMuted">Đánh giá Stockfish:</span>
+                            <span class="text-chess-textMuted">Đánh giá VtiChess:</span>
                             <span id="analysis-eval-badge" class="text-chess-green">+0.32</span>
                         </div>
                         <div class="text-xs text-chess-textMuted font-semibold">
-                            <span class="font-extrabold text-chess-textLight">Biến tốt nhất:</span> <span id="analysis-best-line" class="text-chess-green">Đang chờ Stockfish phân tích…</span>
+                            <span class="font-extrabold text-chess-textLight">Biến tốt nhất:</span> <span id="analysis-best-line" class="text-chess-green">Đang chờ VtiChess phân tích…</span>
                         </div>
-                        <div id="analysis-engine-meta" class="text-[10px] text-chess-textMuted font-bold">Engine: Stockfish Online API · depth tối đa 15</div>
-                        <div id="analysis-lines" class="engine-lines"><div class="text-[11px] text-chess-textMuted">Stockfish Online API trả về một biến chính cho mỗi vị trí.</div></div>
+                        <div id="analysis-engine-meta" class="text-[10px] text-chess-textMuted font-bold">Engine: VtiChess Online API · depth tối đa 15</div>
+                        <div id="analysis-lines" class="engine-lines"><div class="text-[11px] text-chess-textMuted">VtiChess Online API trả về một biến chính cho mỗi vị trí.</div></div>
                     </div>
                     <div class="flex flex-col gap-2">
                         <button onclick="updateAnalysisEvaluation(true)" class="w-full py-2.5 btn-chess-green text-white font-extrabold rounded-xl text-xs transition border border-chess-border"><i class="fa-solid fa-rotate mr-1"></i> Phân Tích / Thử Lại</button>
@@ -661,9 +661,9 @@
             activeBtn.classList.remove('text-chess-textMuted');
 
             const titles = {
-                play: '<i class="fa-solid fa-robot text-chess-green"></i> Đấu Cờ Với Stockfish Bot',
+                play: '<i class="fa-solid fa-robot text-chess-green"></i> Đấu Cờ Với VtiChess Bot',
                 review: '<i class="fa-solid fa-magnifying-glass-chart text-blue-400"></i> Tra Cứu & Phân Tích Ván Đấu Chess.com',
-                analysis: '<i class="fa-solid fa-microchip text-amber-400"></i> Bàn Phân Tích Stockfish',
+                analysis: '<i class="fa-solid fa-microchip text-amber-400"></i> Bàn Phân Tích VtiChess',
                 settings: '<i class="fa-solid fa-sliders text-purple-400"></i> Cài Đặt Giao Diện & Âm Thanh'
             };
             document.getElementById('current-mode-title').innerHTML = titles[tabId];
@@ -690,14 +690,15 @@
         let latestPlayEvalWhite = 0;
         let botMoveInProgress = false;
 
-        // Stockfish Online REST API backend for GitHub Pages.
-        // Uses the same endpoint as the user's working mobile example; no local WASM/Worker download.
-        // API documentation: https://stockfish.online/docs.php (maximum depth is 15).
-        const STOCKFISH_API_URL = 'https://stockfish.online/api/s/v2.php';
-        const STOCKFISH_API_TIMEOUT_MS = 22000;
-        let stockfishReady = false;
-        let stockfishApiChain = Promise.resolve();
-        let stockfishApiRequestCount = 0;
+        // VtiChess local engine bridge. No public VtiChess API and no remote analysis calls.
+        let localEngineWorker = null;
+        let localEngineReady = false;
+        let localEngineInitPromise = null;
+        let localEngineRequestChain = Promise.resolve();
+        let localEngineRequestId = 0;
+        const localEnginePending = new Map();
+        const LOCAL_ENGINE_TIMEOUT_MS = 12000;
+        const LOCAL_ENGINE_CACHE = new Map();
 
         function setEngineStatus(text, state='loading', detail='') {
             const pill = document.getElementById('engine-status');
@@ -707,128 +708,159 @@
                 pill.classList.toggle('ready', state === 'ready');
                 pill.classList.toggle('error', state === 'error');
                 pill.title = detail || (state === 'ready'
-                    ? 'Stockfish Online API đã trả kết quả thành công'
-                    : 'Nhấn để kiểm tra hoặc thử lại Stockfish Online API');
+                    ? 'VtiChess engine chạy cục bộ trong trình duyệt, không cần API bên ngoài.'
+                    : 'Bấm để khởi tạo lại engine cục bộ.');
             }
         }
 
-        // No local engine file is loaded. A real API request is made when analysis is requested.
-        function initStockfish() {
-            return Promise.resolve();
-        }
-
-        function retryStockfish() {
-            setEngineStatus('Đang kiểm tra Stockfish API…', 'loading', 'Đang gửi một vị trí mẫu tới stockfish.online');
-            const probeFen = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
-            analyzeFen(probeFen, 5, 1).then(() => {
-                showToast('Stockfish Online API phản hồi thành công.');
-            }).catch(error => {
-                showToast((error && error.message) ? error.message : 'Không kết nối được Stockfish Online API.');
-            });
-        }
-
-        function apiErrorMessage(status, body) {
-            let detail = '';
-            try {
-                const parsed = JSON.parse(body);
-                detail = parsed.error || parsed.message || parsed.detail || '';
-            } catch (_) {}
-            if (!detail && body) detail = String(body).replace(/\s+/g, ' ').slice(0, 180);
-            if (status === 429) return 'Stockfish API đang giới hạn số yêu cầu (HTTP 429). Hãy đợi một chút rồi thử lại.';
-            if (status === 503 || status === 502 || status === 504) return `Máy chủ Stockfish đang bận (HTTP ${status}). Thử lại sau.`;
-            return `Stockfish API trả HTTP ${status}${detail ? ': ' + detail : '.'}`;
-        }
-
-        async function performStockfishApiRequest(fen, requestedDepth=12) {
-            const depth = Math.max(1, Math.min(15, Math.round(Number(requestedDepth) || 12)));
-            const query = new URLSearchParams({fen: String(fen), depth: String(depth)});
-            const url = `${STOCKFISH_API_URL}?${query.toString()}`;
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), STOCKFISH_API_TIMEOUT_MS);
-            stockfishApiRequestCount += 1;
-            setEngineStatus(`Stockfish Online · phân tích ${depth}`, 'loading', `Yêu cầu ${stockfishApiRequestCount} · giới hạn chờ ${STOCKFISH_API_TIMEOUT_MS / 1000}s`);
-            let response;
-            let rawBody = '';
-            try {
-                response = await fetch(url, {
-                    method: 'GET',
-                    mode: 'cors',
-                    cache: 'no-store',
-                    headers: {'Accept': 'application/json'},
-                    signal: controller.signal
-                });
-                rawBody = await response.text();
-            } catch (error) {
-                if (error && error.name === 'AbortError') {
-                    throw new Error(`Stockfish API hết thời gian chờ ${STOCKFISH_API_TIMEOUT_MS / 1000} giây. Máy chủ có thể đang bận; bấm trạng thái Stockfish để thử lại.`);
-                }
-                throw new Error('Không kết nối được stockfish.online. Hãy kiểm tra Internet; nếu Console báo CORS thì máy chủ API đang chặn yêu cầu từ trang này.');
-            } finally {
-                clearTimeout(timeoutId);
-            }
-            if (!response.ok) throw new Error(apiErrorMessage(response.status, rawBody));
-
-            let data;
-            try { data = JSON.parse(rawBody); }
-            catch (_) { throw new Error('Stockfish API không trả JSON hợp lệ.'); }
-            if (!data || data.success !== true) {
-                const detail = data && (data.error || data.message || data.detail);
-                throw new Error(`Stockfish API không phân tích được vị trí${detail ? ': ' + detail : '.'}`);
-            }
-
-            const rawBest = String(data.bestmove || '');
-            const bestMatch = rawBest.match(/\bbestmove\s+(\S+)/i);
-            const bareMoveMatch = rawBest.match(/\b([a-h][1-8][a-h][1-8][qrbn]?)\b/i);
-            const bestmove = bestMatch ? bestMatch[1] : (bareMoveMatch ? bareMoveMatch[1] : '(none)');
-            const fenParts = String(fen).trim().split(/\s+/);
-            const sideToMoveSign = fenParts[1] === 'b' ? -1 : 1;
-            const isMate = data.mate !== null && data.mate !== undefined && Number.isFinite(Number(data.mate));
-            let scoreType = isMate ? 'mate' : 'cp';
-            let rawScore, cpEquivalent, scorePawns;
-
-            // The service's evaluation/mate values are White-perspective; convert to UCI's
-            // side-to-move perspective because the rest of this app expects UCI-style scores.
+        function localScoreLine(score, pv, depth, multipv) {
+            const value = Number(score) || 0;
+            const isMate = Math.abs(value) >= 29000;
+            let rawScore = value, cpEquivalent = value, scorePawns = value / 100;
             if (isMate) {
-                rawScore = Number(data.mate) * sideToMoveSign;
-                cpEquivalent = Math.sign(rawScore || 1) * (10000 - Math.min(99, Math.abs(rawScore)) * 100);
+                rawScore = Math.sign(value) * Math.max(1, Math.ceil((30000 - Math.abs(value)) / 2));
+                cpEquivalent = Math.sign(value) * Math.max(500, 10000 - Math.abs(rawScore) * 100);
                 scorePawns = cpEquivalent / 100;
-            } else {
-                const whiteEvaluation = Number(data.evaluation);
-                if (!Number.isFinite(whiteEvaluation)) throw new Error('Stockfish API thiếu trường evaluation hợp lệ.');
-                scorePawns = whiteEvaluation * sideToMoveSign;
-                cpEquivalent = Math.round(scorePawns * 100);
-                rawScore = cpEquivalent;
             }
-
-            const continuationTokens = String(data.continuation || '')
-                .trim().split(/\s+/).filter(token => /^[a-h][1-8][a-h][1-8][qrbn]?$/i.test(token));
-            if (bestmove !== '(none)' && bestmove !== '0000' && (!continuationTokens.length || continuationTokens[0] !== bestmove)) {
-                continuationTokens.unshift(bestmove);
-            }
-            const line = {
-                depth,
-                multipv: 1,
-                scoreType,
-                rawScore,
-                cpEquivalent,
-                scorePawns,
-                pv: continuationTokens.join(' ')
-            };
-            stockfishReady = true;
-            setEngineStatus('Stockfish Online API · sẵn sàng', 'ready', 'API đã trả về kết quả thành công. Bấm để kiểm tra lại khi cần.');
-            return {bestmove, lines:[line], fen, depth, source:'Stockfish Online API'};
+            return {depth:depth || 1, multipv:multipv || 1, scoreType:isMate?'mate':'cp',
+                rawScore, cpEquivalent:Math.round(cpEquivalent), scorePawns, pv:String(pv || '')};
         }
 
-        function analyzeFen(fen, depth=12, multiPV=1, options={}) {
-            // The public REST API returns one principal variation only. Serialize calls so
-            // whole-game review does not flood the free API with simultaneous requests.
-            const run = () => performStockfishApiRequest(fen, depth);
-            const task = stockfishApiChain.then(run, run).catch(error => {
-                const detail = error && error.message ? error.message : String(error || 'Lỗi không xác định');
-                setEngineStatus('Stockfish API lỗi · bấm thử lại', 'error', detail);
+        function ensureLocalEngine() {
+            if (localEngineWorker && localEngineReady) return Promise.resolve();
+            if (localEngineInitPromise) return localEngineInitPromise;
+            localEngineInitPromise = new Promise((resolve, reject) => {
+                let settled = false;
+                const finish = (err) => {
+                    if (settled) return;
+                    settled = true;
+                    clearTimeout(readyTimer);
+                    if (err) {
+                        localEngineReady = false;
+                        setEngineStatus('VtiChess Engine · lỗi khởi tạo', 'error', err.message || String(err));
+                        reject(err);
+                    } else {
+                        localEngineReady = true;
+                        setEngineStatus('VtiChess Engine · sẵn sàng', 'ready');
+                        resolve();
+                    }
+                };
+                const readyTimer = setTimeout(() => finish(new Error(
+                    'Không khởi tạo được engine trong 8 giây. Kiểm tra engine/vti-engine.worker.js và vendor/chess.js trong repository.'
+                )), 8000);
+                try {
+                    localEngineWorker = new Worker(new URL('./engine/vti-engine.worker.js', window.location.href));
+                    localEngineWorker.onmessage = (event) => {
+                        const msg = event.data || {};
+                        if (msg.type === 'ready') { finish(null); return; }
+                        if (msg.type === 'progress') {
+                            setEngineStatus(`VtiChess đang tính · độ sâu ${msg.depth}`, 'loading',
+                                `Đã xét khoảng ${Number(msg.nodes || 0).toLocaleString('vi-VN')} nút.`);
+                            return;
+                        }
+                        if (msg.type === 'error') {
+                            const pending = localEnginePending.get(msg.id);
+                            if (pending) {
+                                clearTimeout(pending.timer);
+                                localEnginePending.delete(msg.id);
+                                pending.reject(new Error(msg.message || 'Engine nội bộ gặp lỗi.'));
+                            }
+                            return;
+                        }
+                        if (msg.type === 'result') {
+                            const pending = localEnginePending.get(msg.id);
+                            if (!pending) return;
+                            clearTimeout(pending.timer);
+                            localEnginePending.delete(msg.id);
+                            const lines = (msg.lines || []).map((line, index) =>
+                                localScoreLine(line.score, line.pv, msg.depth, index + 1));
+                            const chosenLine = lines.find(line => line.pv && line.pv.startsWith(msg.bestmove));
+                            const chosen = localScoreLine(msg.score, chosenLine ? chosenLine.pv : msg.bestmove, msg.depth, 1);
+                            setEngineStatus('VtiChess Engine · sẵn sàng', 'ready',
+                                `Engine JavaScript cục bộ · depth ${msg.depth} · ${Number(msg.nodes || 0).toLocaleString('vi-VN')} nút.`);
+                            pending.resolve({
+                                bestmove:msg.bestmove || '(none)', lines:lines.length ? lines : [chosen],
+                                fen:msg.fen, depth:msg.depth || 1, nodes:msg.nodes || 0,
+                                source:'VtiChess JS Engine', score:chosen
+                            });
+                        }
+                    };
+                    localEngineWorker.onerror = (event) => {
+                        const error = new Error('Không tải được engine worker: ' +
+                            (event.message || 'Kiểm tra đường dẫn engine/vti-engine.worker.js.'));
+                        finish(error);
+                        for (const [id, pending] of localEnginePending) {
+                            clearTimeout(pending.timer);
+                            pending.reject(error);
+                            localEnginePending.delete(id);
+                        }
+                    };
+                } catch (error) {
+                    finish(new Error('Trình duyệt không tạo được Web Worker: ' + (error.message || String(error))));
+                }
+            }).catch(error => {
+                localEngineInitPromise = null;
+                localEngineWorker = null;
                 throw error;
             });
-            stockfishApiChain = task.catch(() => {});
+            return localEngineInitPromise;
+        }
+
+        function initVtiChess() {
+            // Compatibility alias for existing app entry points; this is VtiChess, not VtiChess.
+            return ensureLocalEngine();
+        }
+
+        async function retryVtiChess() {
+            try {
+                setEngineStatus('Đang khởi tạo VtiChess Engine…', 'loading');
+                await ensureLocalEngine();
+                const probe = await analyzeFen('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1', 2, 1);
+                showToast(`VtiChess Engine hoạt động · depth ${probe.depth}.`);
+            } catch (error) {
+                showToast(error && error.message ? error.message : 'Không khởi tạo được engine nội bộ.');
+            }
+        }
+
+        function analyzeFen(fen, depth=4, multiPV=1, options={}) {
+            const botLevel = options && options.botLevel !== undefined && options.botLevel !== null
+                ? Number(options.botLevel) : null;
+            const safeDepth = Math.max(1, Math.min(15, Number(depth) || 4));
+            const safeMultiPV = Math.max(1, Math.min(3, Number(multiPV) || 1));
+            const cacheKey = [String(fen), safeDepth, safeMultiPV,
+                Number.isFinite(botLevel) ? 'bot'+botLevel : 'analysis'].join('|');
+            if (LOCAL_ENGINE_CACHE.has(cacheKey)) return Promise.resolve(LOCAL_ENGINE_CACHE.get(cacheKey));
+            const run = async () => {
+                await ensureLocalEngine();
+                const id = ++localEngineRequestId;
+                setEngineStatus('VtiChess đang phân tích…', 'loading');
+                return new Promise((resolve, reject) => {
+                    const timer = setTimeout(() => {
+                        localEnginePending.delete(id);
+                        reject(new Error('Engine nội bộ quá thời gian 12 giây. Hãy thử lại với thế cờ đơn giản hơn.'));
+                    }, LOCAL_ENGINE_TIMEOUT_MS);
+                    localEnginePending.set(id, {resolve, reject, timer});
+                    try {
+                        localEngineWorker.postMessage({type:'analyze',id,fen:String(fen),
+                            depth:safeDepth,multiPV:safeMultiPV,
+                            botLevel:Number.isFinite(botLevel)?botLevel:null});
+                    } catch (error) {
+                        clearTimeout(timer);
+                        localEnginePending.delete(id);
+                        reject(error);
+                    }
+                });
+            };
+            const task = localEngineRequestChain.then(run, run).then(result => {
+                LOCAL_ENGINE_CACHE.set(cacheKey, result);
+                if (LOCAL_ENGINE_CACHE.size > 250) LOCAL_ENGINE_CACHE.delete(LOCAL_ENGINE_CACHE.keys().next().value);
+                return result;
+            }).catch(error => {
+                setEngineStatus('VtiChess Engine · bấm để thử lại', 'error',
+                    error && error.message ? error.message : String(error));
+                throw error;
+            });
+            localEngineRequestChain = task.catch(() => {});
             return task;
         }
 
@@ -991,7 +1023,7 @@
         }
 
         function classifyLoss(lossCp, isBest) {
-            if (isBest) return {key:'best',name:'Tốt nhất',badge:'badge-best',icon:'✓',message:'Nước đi trùng với lựa chọn hàng đầu của Stockfish.'};
+            if (isBest) return {key:'best',name:'Tốt nhất',badge:'badge-best',icon:'✓',message:'Nước đi trùng với lựa chọn hàng đầu của VtiChess.'};
             if (lossCp <= 10) return {key:'excellent',name:'Xuất sắc',badge:'badge-best',icon:'!',message:'Chỉ làm giảm lợi thế rất ít so với lựa chọn tốt nhất.'};
             if (lossCp <= 25) return {key:'good',name:'Tốt',badge:'badge-good',icon:'✓',message:'Nước đi ổn; có lựa chọn chính xác hơn một chút.'};
             if (lossCp <= 50) return {key:'inaccuracy',name:'Chưa chính xác',badge:'badge-inaccuracy',icon:'?!',message:'Nước đi làm giảm lợi thế đáng kể.'};
@@ -1002,7 +1034,7 @@
         async function evaluatePlayedMove(beforeFen, afterFen, move, mover) {
             const commentaryEl = document.getElementById('live-textbook-comment');
             const badgeEl = document.getElementById('live-move-badge');
-            commentaryEl.textContent = 'Stockfish đang so sánh thế cờ trước và sau nước đi…';
+            commentaryEl.textContent = 'VtiChess đang so sánh thế cờ trước và sau nước đi…';
             badgeEl.className = 'px-2.5 py-0.5 rounded-full text-xs font-extrabold bg-chess-hover text-chess-textLight';
             badgeEl.textContent = 'Đang phân tích';
             try {
@@ -1015,14 +1047,14 @@
                 const cls = classifyLoss(lossCp, isBest);
                 badgeEl.className = `px-2.5 py-0.5 rounded-full text-xs font-extrabold ${cls.badge}`;
                 badgeEl.textContent = `${cls.name}${isBest ? '' : ` · −${(lossCp/100).toFixed(2)}`}`;
-                commentaryEl.textContent = `${cls.message} Stockfish đánh giá sau nước đi: ${formatWhiteScore(afterFen, afterLine)}. Gợi ý: ${uciLineToSan(beforeFen, before.bestmove, 1)}.`;
+                commentaryEl.textContent = `${cls.message} VtiChess đánh giá sau nước đi: ${formatWhiteScore(afterFen, afterLine)}. Gợi ý: ${uciLineToSan(beforeFen, before.bestmove, 1)}.`;
                 lastMoveBadgeInfo = {bgClass:cls.badge, icon:cls.icon};
                 lastMoveBadgeSquare = move.to;
                 if (game.fen() === afterFen) renderPlayBoard();
                 latestPlayEvalWhite = scoreInWhitePerspective(afterFen, afterLine);
                 updateEvalBar();
             } catch (error) {
-                commentaryEl.textContent = 'Chưa lấy được phân tích Stockfish. Kiểm tra kết nối Stockfish Online API rồi thử lại. Nước đi vẫn hợp lệ.';
+                commentaryEl.textContent = 'Chưa lấy được phân tích VtiChess. Kiểm tra kết nối VtiChess Online API rồi thử lại. Nước đi vẫn hợp lệ.';
                 badgeEl.className = 'px-2.5 py-0.5 rounded-full text-xs font-extrabold badge-inaccuracy';
                 badgeEl.textContent = 'Engine chưa sẵn sàng';
             }
@@ -1086,7 +1118,7 @@
                             latestPlayEvalWhite = scoreInWhitePerspective(game.fen(), line);
                             updateEvalBar();
                             document.getElementById('live-move-badge').className = 'px-2.5 py-0.5 rounded-full text-xs font-extrabold badge-best';
-                            document.getElementById('live-move-badge').textContent = 'Stockfish đã chọn';
+                            document.getElementById('live-move-badge').textContent = 'VtiChess đã chọn';
                             document.getElementById('live-textbook-comment').textContent = `Bot chọn ${res.san}. Engine đánh giá thế cờ: ${formatWhiteScore(game.fen(), line)}.`;
                         }
                     } catch (_) {}
@@ -1094,7 +1126,7 @@
                     if (game.game_over()) showGameResult();
                 }
             } catch (error) {
-                showToast('Stockfish chưa tải được. Hãy kiểm tra mạng và tải lại trang.');
+                showToast('VtiChess chưa tải được. Hãy kiểm tra mạng và tải lại trang.');
             } finally {
                 botMoveInProgress = false;
                 document.getElementById('bot-thinking').classList.add('hidden');
@@ -1150,9 +1182,9 @@
             try {
                 const result = await analyzeFen(game.fen(), 12, 1);
                 const san = uciLineToSan(game.fen(), result.bestmove, 1);
-                showToast(`Stockfish gợi ý: ${san}`);
-                document.getElementById('live-textbook-comment').textContent = `Nước tốt nhất theo Stockfish: ${san}. Biến chính: ${uciLineToSan(game.fen(), primaryLine(result).pv, 8)}.`;
-            } catch (_) { showToast('Stockfish chưa sẵn sàng.'); }
+                showToast(`VtiChess gợi ý: ${san}`);
+                document.getElementById('live-textbook-comment').textContent = `Nước tốt nhất theo VtiChess: ${san}. Biến chính: ${uciLineToSan(game.fen(), primaryLine(result).pv, 8)}.`;
+            } catch (_) { showToast('VtiChess chưa sẵn sàng.'); }
         }
 
         function flipBoard() {
@@ -1175,7 +1207,7 @@
             document.getElementById('promotion-modal').classList.add('hidden');
             document.getElementById('live-move-badge').className = 'px-2.5 py-0.5 rounded-full text-xs font-extrabold badge-best';
             document.getElementById('live-move-badge').textContent = 'Chờ nước đi';
-            document.getElementById('live-textbook-comment').textContent = 'Stockfish sẽ chấm nước đi sau khi bạn di chuyển.';
+            document.getElementById('live-textbook-comment').textContent = 'VtiChess sẽ chấm nước đi sau khi bạn di chuyển.';
             renderPlayBoard(); showToast('Ván mới bắt đầu!');
             if (playerColor === 'b') queueBotMove();
         }
@@ -1317,7 +1349,7 @@
             if (!selectedResult) {
                 badgeEl.className = 'px-2.5 py-0.5 rounded-full text-xs font-extrabold badge-best';
                 badgeEl.textContent = reviewMoveResults.length ? 'Chọn một nước đi' : 'Chưa phân tích';
-                explanationEl.textContent = reviewMoveResults.length ? 'Dùng Trước/Sau để xem đánh giá từng nước.' : 'Bấm “Phân Tích Toàn Bộ Ván” để Stockfish kiểm tra từng vị trí. Kết quả chưa được tự điền trước.';
+                explanationEl.textContent = reviewMoveResults.length ? 'Dùng Trước/Sau để xem đánh giá từng nước.' : 'Bấm “Phân Tích Toàn Bộ Ván” để VtiChess kiểm tra từng vị trí. Kết quả chưa được tự điền trước.';
                 return;
             }
             const cls = selectedResult.classification;
@@ -1374,7 +1406,7 @@
             const button = document.querySelector('#review-active-content button[onclick="runFullReviewAnalysis()"]');
             if (button) { button.disabled=true; button.innerHTML='<i class="fa-solid fa-spinner fa-spin"></i> Đang phân tích…'; }
             try {
-                await initStockfish();
+                await initVtiChess();
                 const temp = new Chess(reviewStartFen);
                 const positions = [{fen:temp.fen()}];
                 const moves = [];
@@ -1421,11 +1453,11 @@
                 document.getElementById('review-analysis-progress').textContent = `Xong · ${positions.length} vị trí`;
                 reviewCurrentIdx = Math.min(reviewCurrentIdx, reviewHistory.length);
                 renderReviewBoard();
-                showToast('Phân tích Stockfish hoàn tất. Độ chính xác là ước tính từ mức mất điểm, không phải điểm CAPS chính thức của Chess.com.');
+                showToast('Phân tích VtiChess hoàn tất. Độ chính xác là ước tính từ mức mất điểm, không phải điểm CAPS chính thức của Chess.com.');
             } catch (error) {
                 console.error(error);
                 document.getElementById('review-analysis-progress').textContent = 'Lỗi engine';
-                showToast('Không chạy được Stockfish Online API. Kiểm tra mạng hoặc thử lại sau; máy chủ API bên ngoài có thể đang bận.');
+                showToast('Không chạy được engine VtiChess nội bộ. Hãy tải lại trang và kiểm tra các tệp engine/vti-engine.worker.js, vendor/chess.js.');
             } finally {
                 reviewAnalysisRunning=false;
                 if (button) { button.disabled=false; button.innerHTML='<i class="fa-solid fa-wand-magic-sparkles"></i> Phân Tích Toàn Bộ Ván'; }
@@ -1506,13 +1538,13 @@
             const fen=analysisChess.fen();
             if (!force && analysisRequestedFen===fen) return;
             analysisRequestedFen=fen;
-            document.getElementById('analysis-engine-meta').textContent='Stockfish đang phân tích…';
+            document.getElementById('analysis-engine-meta').textContent='VtiChess đang phân tích…';
             document.getElementById('analysis-best-line').textContent='Đang tính biến tốt nhất…';
             try {
                 const result=await analyzeFen(fen,13,3);
                 if (analysisChess.fen()!==fen) return;
                 if (!result || !result.lines || !result.lines.length || !result.bestmove || result.bestmove==='(none)') {
-                    throw new Error('Stockfish không trả về nước đi/biến chính cho vị trí này.');
+                    throw new Error('VtiChess không trả về nước đi/biến chính cho vị trí này.');
                 }
                 analysisLastResult=result;
                 const line=primaryLine(result);
@@ -1520,7 +1552,7 @@
                 updateAnalysisEvalBar(whiteEval);
                 document.getElementById('analysis-eval-badge').textContent=formatWhiteScore(fen,line);
                 document.getElementById('analysis-best-line').textContent=uciLineToSan(fen,line.pv,12);
-                document.getElementById('analysis-engine-meta').textContent=`Stockfish Online API · depth ${line.depth || result.depth} · 1 biến chính`;
+                document.getElementById('analysis-engine-meta').textContent=`VtiChess Online API · depth ${line.depth || result.depth} · 1 biến chính`;
                 const linesEl=document.getElementById('analysis-lines'); linesEl.innerHTML='';
                 result.lines.forEach((pv,index)=>{
                     const row=document.createElement('div'); row.className='engine-line-row';
@@ -1537,8 +1569,8 @@
                 const best=document.getElementById('analysis-best-line');
                 const lines=document.getElementById('analysis-lines');
                 if (meta) meta.textContent='Engine lỗi · bấm “Phân Tích / Thử Lại”';
-                if (best) best.textContent=(error && error.message) ? error.message : 'Không nhận được phân tích từ Stockfish.';
-                if (lines) lines.innerHTML='<div class="text-[11px] text-chess-textMuted">Kiểm tra Internet hoặc bấm trạng thái Stockfish để thử lại; API công cộng có thể đang bận.</div>';
+                if (best) best.textContent=(error && error.message) ? error.message : 'Không nhận được phân tích từ VtiChess.';
+                if (lines) lines.innerHTML='<div class="text-[11px] text-chess-textMuted">Bấm trạng thái VtiChess để khởi tạo lại engine cục bộ.</div>';
                 drawBestMoveArrow();
             }
         }
@@ -1600,8 +1632,13 @@
         window.onload = function() {
             renderPlayBoard();
             updateBotElo(1500);
-            setEngineStatus('Stockfish Online API · chưa kiểm tra', 'loading', 'API sẽ được gọi khi bạn bấm Gợi ý, phân tích hoặc bấm vào trạng thái này để kiểm tra.');
-            document.getElementById('live-textbook-comment').textContent = 'Stockfish Online API sẽ phân tích khi bạn đi một nước hoặc bấm Gợi ý. Không cần tải WASM về GitHub Pages.';
+            setEngineStatus('VtiChess Engine · đang khởi tạo', 'loading', 'Engine JavaScript cục bộ; không gọi API bên ngoài.');
+            document.getElementById('live-textbook-comment').textContent =
+                'VtiChess Engine chạy ngay trong trình duyệt, không cần API phân tích bên ngoài.';
+            ensureLocalEngine().catch(error => {
+                document.getElementById('live-textbook-comment').textContent =
+                    'Engine khởi tạo lỗi: ' + (error.message || error);
+            });
         };
     </script>
 </body>
