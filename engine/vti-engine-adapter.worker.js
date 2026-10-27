@@ -30,10 +30,10 @@ function startFallback() {
       const msg = event.data || {};
       if (msg.type === 'ready') {
         fallbackReady = true;
-        if (stockfishDisabled) {
-          sendReady('VtiChess JS dự phòng');
-          dispatchNextStockfishJob();
-        }
+        // Let the app start immediately using the working fallback while Stockfish loads.
+        // If Stockfish completes later, its "engine" event updates the visible engine status.
+        sendReady('VtiChess JS dự phòng');
+        if (stockfishDisabled) dispatchNextStockfishJob();
         return;
       }
       if (msg.type === 'result') {
@@ -92,11 +92,19 @@ function startStockfish() {
     stockfishBlobUrl = URL.createObjectURL(blob);
     stockfishWorker = new Worker(stockfishBlobUrl);
     stockfishWorker.onmessage = function(event) { handleStockfishLine(event.data); };
-    stockfishWorker.onerror = function() { disableStockfish('Không tải được Stockfish WASM; chuyển sang engine dự phòng.'); };
+    stockfishWorker.onerror = function(event) {
+      const details = event && event.message ? String(event.message) : 'Worker phát sinh lỗi không có thông tin chi tiết.';
+      disableStockfish('Stockfish worker lỗi: ' + details);
+    };
+    stockfishWorker.onmessageerror = function() {
+      disableStockfish('Không đọc được thông điệp từ Stockfish worker; dùng engine dự phòng.');
+    };
     stockfishWorker.postMessage('uci');
     setTimeout(function() {
-      if (!stockfishReady) disableStockfish('Stockfish WASM khởi tạo quá lâu; dùng engine dự phòng.');
-    }, 6500);
+      if (!stockfishReady) {
+        disableStockfish('Stockfish chưa gửi readyok sau 20 giây. Kiểm tra kết nối CDN hoặc lỗi tải tệp WASM; engine dự phòng vẫn hoạt động.');
+      }
+    }, 20000);
   } catch (error) {
     disableStockfish('Không tạo được Stockfish WASM: ' + (error && error.message || error));
   }
@@ -147,7 +155,10 @@ function dispatchNextStockfishJob() {
 
 function handleStockfishLine(data) {
   if (typeof data !== 'string') {
-    if (data && data.error) disableStockfish(String(data.error));
+    if (data && data.error) {
+      const detail = data.error.stack || data.error.message || String(data.error);
+      disableStockfish('Stockfish trả về lỗi: ' + detail);
+    }
     return;
   }
   const line = data.trim();
