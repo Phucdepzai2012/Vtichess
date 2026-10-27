@@ -85,7 +85,7 @@ function startStockfish() {
     const bootstrap = [
       'self.Module = self.Module || {};',
       'self.Module.locateFile = function(path, prefix) {',
-      '  if (/\\.wasm(?:\\?|$)/.test(path)) return ' + JSON.stringify(STOCKFISH_WASM) + ';',
+      '  if (String(path).toLowerCase().indexOf(".wasm") !== -1) return ' + JSON.stringify(STOCKFISH_WASM) + ';',
       '  return (prefix || ' + JSON.stringify(STOCKFISH_BASE) + ') + path;',
       '};',
       'importScripts(' + JSON.stringify(STOCKFISH_JS) + ');'
