@@ -238,7 +238,8 @@ function analyzeJob(job) {
   }
   const botLevel = job.botLevel !== null && job.botLevel !== undefined && Number.isFinite(Number(job.botLevel)) ? Number(job.botLevel) : null;
   const requestedDepth = depthForLevel(job.depth, botLevel);
-  const maxTime = botLevel === null ? 1300 : 950;
+  const requestedTime = job.timeMs !== null && job.timeMs !== undefined && Number.isFinite(Number(job.timeMs)) ? Number(job.timeMs) : null;
+  const maxTime = requestedTime === null ? (botLevel === null ? 2600 : 1500) : Math.max(250, Math.min(3500, requestedTime));
   const deadline = Date.now() + maxTime;
   let bestCandidates = legal.slice(0,1).map(m=>({move:moveUci(m),score:evaluate(chess),pv:[moveUci(m)]}));
   let completedDepth = 0, preferred = null, totalNodes = 0;
@@ -251,7 +252,7 @@ function analyzeJob(job) {
       postMessage({type:'result',id:job.id,fen:job.fen,depth:completedDepth,bestmove:chosen?chosen.move:'(none)',score,lines:top.map(c=>({score:c.score,pv:c.pv.join(' ')})),nodes:totalNodes});
       return;
     }
-    const state = {nodes:0,nodeLimit:Math.max(5000,Math.min(24000,70000-totalNodes)),deadline:Math.min(deadline,Date.now() + (depth <= 2 ? 350 : depth <= 4 ? 550 : 750)),aborted:false};
+    const state = {nodes:0,nodeLimit:Math.max(5000,Math.min(24000,70000-totalNodes)),deadline:Math.min(deadline,Date.now() + (depth <= 2 ? 400 : depth <= 4 ? 1000 : 1400)),aborted:false};
     stateKillers = [];
     historyHeuristic = new Map();
     const candidates = rootSearch(job.fen,depth,state,preferred);
