@@ -234,7 +234,7 @@ function analyzeJob(job) {
     postMessage({type:'result',id:job.id,fen:job.fen,depth:0,bestmove:'(none)',score:terminalScore(chess,0)||0,lines:[],nodes:0});
     return;
   }
-  const botLevel = Number.isFinite(Number(job.botLevel)) ? Number(job.botLevel) : null;
+  const botLevel = job.botLevel !== null && job.botLevel !== undefined && Number.isFinite(Number(job.botLevel)) ? Number(job.botLevel) : null;
   const requestedDepth = depthForLevel(job.depth, botLevel);
   const maxTime = botLevel === null ? 1300 : 950;
   const deadline = Date.now() + maxTime;
