@@ -270,10 +270,18 @@ function analyzeJob(job) {
   const requestedDepth = depthForLevel(job.depth, botLevel);
   const requestedTime = job.timeMs !== null && job.timeMs !== undefined && Number.isFinite(Number(job.timeMs)) ? Number(job.timeMs) : null;
   const botTime = !Number.isFinite(botLevel) ? 700 : botLevel < 500 ? 1000 : botLevel < 1200 ? 2200 : botLevel < 2000 ? 3500 : botLevel < 3000 ? 5000 : 6500;
-  const maxTime = requestedTime === null ? botTime : Math.max(250, Math.min(7500, requestedTime));
+  const maxTime = requestedTime === null ? botTime : Math.max(100, Math.min(7500, requestedTime));
   const deadline = Date.now() + maxTime;
-  let bestCandidates = legal.slice(0,1).map(m=>({move:moveUci(m),score:evaluate(chess),pv:[moveUci(m)]}));
-  let completedDepth = 0, preferred = null, totalNodes = 0;
+  // Build a cheap positional fallback for every legal move before timed search. If a very
+  // short budget expires mid-iteration, the answer will not be biased toward the first move.
+  let bestCandidates = legal.map(m => {
+    const uci = moveUci(m);
+    const made = chess.move({from:m.from,to:m.to,promotion:m.promotion || 'q'});
+    const score = made ? -evaluate(chess) : -INF;
+    if (made) chess.undo();
+    return {move:uci,score,pv:[uci]};
+  }).sort((a,b)=>b.score-a.score);
+  let completedDepth = 0, preferred = bestCandidates.length ? bestCandidates[0].move : null, totalNodes = 0;
   function iterate(depth) {
     if (job.id !== activeJob) return;
     if (depth > requestedDepth || Date.now() >= deadline || totalNodes >= 70000) {
