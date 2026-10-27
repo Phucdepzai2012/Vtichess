@@ -1,26 +1,41 @@
 /* Same-origin Stockfish worker wrapper.
- * Avoids creating a nested blob: worker, which can be blocked by worker-src CSP.
- * The Stockfish loader and its WASM are fetched from the pinned CDN release.
+ * Tries two public npm CDNs and keeps the WASM on the same CDN that served the loader.
+ * This avoids making the whole engine depend on jsDelivr being reachable from the user's network.
  */
-const STOCKFISH_BASE = 'https://cdn.jsdelivr.net/npm/stockfish@18.0.8/bin/';
-const STOCKFISH_JS = STOCKFISH_BASE + 'stockfish-18-lite-single.js';
-const STOCKFISH_WASM = STOCKFISH_BASE + 'stockfish-18-lite-single.wasm';
+const STOCKFISH_BASES = [
+  'https://unpkg.com/stockfish@18.0.8/bin/',
+  'https://cdn.jsdelivr.net/npm/stockfish@18.0.8/bin/'
+];
+const STOCKFISH_FILE = 'stockfish-18-lite-single.js';
+let activeBase = STOCKFISH_BASES[0];
 
 self.Module = self.Module || {};
 self.Module.locateFile = function(path, prefix) {
-  const file = String(path || '').split(/[?#]/, 1)[0].split('/').pop();
-  if (file && file.toLowerCase().endsWith('.wasm')) return STOCKFISH_WASM;
-  return (prefix || STOCKFISH_BASE) + path;
+  const cleanPath = String(path || '').split(/[?#]/, 1)[0];
+  const file = cleanPath.split('/').pop();
+  if (file && file.toLowerCase().endsWith('.wasm')) return activeBase + file;
+  return (prefix || activeBase) + path;
 };
 
-try {
-  importScripts(STOCKFISH_JS);
-} catch (error) {
+let lastLoadError = null;
+for (const base of STOCKFISH_BASES) {
+  activeBase = base;
+  try {
+    importScripts(activeBase + STOCKFISH_FILE);
+    lastLoadError = null;
+    break;
+  } catch (error) {
+    lastLoadError = error;
+  }
+}
+
+if (lastLoadError) {
   postMessage({
     type: 'error',
     error: {
-      message: error && error.message ? error.message : String(error),
-      stack: error && error.stack ? String(error.stack) : ''
+      message: 'Không tải được Stockfish từ unpkg hoặc jsDelivr: ' +
+        (lastLoadError && lastLoadError.message ? lastLoadError.message : String(lastLoadError)),
+      stack: lastLoadError && lastLoadError.stack ? String(lastLoadError.stack) : ''
     }
   });
 }
