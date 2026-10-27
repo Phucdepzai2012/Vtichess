@@ -23,6 +23,18 @@ function positionKey(chess) {
 function scoreWhite(chess) {
   const board = chess.board();
   let score = 0, phase = 0, whiteBishops = 0, blackBishops = 0;
+  // Calculate total material phase before applying king placement bonuses.
+  for (let r = 0; r < 8; r++) {
+    for (let c = 0; c < 8; c++) {
+      const p = board[r][c];
+      if (!p) continue;
+      if (p.type === 'n' || p.type === 'b') phase += 1;
+      if (p.type === 'r') phase += 2;
+      if (p.type === 'q') phase += 4;
+      if (p.type === 'b') p.color === 'w' ? whiteBishops++ : blackBishops++;
+    }
+  }
+  const endgame = phase <= 8;
   for (let r = 0; r < 8; r++) {
     for (let c = 0; c < 8; c++) {
       const p = board[r][c];
@@ -30,10 +42,6 @@ function scoreWhite(chess) {
       const sign = p.color === 'w' ? 1 : -1;
       const value = PIECE_VALUE[p.type] || 0;
       score += sign * value;
-      if (p.type === 'n' || p.type === 'b') phase += 1;
-      if (p.type === 'r') phase += 2;
-      if (p.type === 'q') phase += 4;
-      if (p.type === 'b') p.color === 'w' ? whiteBishops++ : blackBishops++;
       const centerDistance = Math.abs(3.5 - c) + Math.abs(3.5 - r);
       const center = Math.round((7 - centerDistance) * 4);
       if (p.type === 'p') {
@@ -48,8 +56,6 @@ function scoreWhite(chess) {
       } else if (p.type === 'q') {
         score += sign * Math.round(center * 0.35);
       } else if (p.type === 'k') {
-        // Keep the king sheltered early; encourage central activity in simplified positions.
-        const endgame = phase <= 8;
         score += sign * (endgame ? center * 2 : -center * 2);
         if (!endgame && (c === 6 || c === 2) && (r === 7 || r === 0)) score += sign * 18;
       }
@@ -230,7 +236,7 @@ function analyzeJob(job) {
   }
   const botLevel = Number.isFinite(Number(job.botLevel)) ? Number(job.botLevel) : null;
   const requestedDepth = depthForLevel(job.depth, botLevel);
-  const maxTime = botLevel === null ? 1800 : 1200;
+  const maxTime = botLevel === null ? 1300 : 950;
   const deadline = Date.now() + maxTime;
   let bestCandidates = legal.slice(0,1).map(m=>({move:moveUci(m),score:evaluate(chess),pv:[moveUci(m)]}));
   let completedDepth = 0, preferred = null, totalNodes = 0;
