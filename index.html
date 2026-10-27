@@ -827,8 +827,9 @@
                 ? Number(options.botLevel) : null;
             const safeDepth = Math.max(1, Math.min(15, Number(depth) || 4));
             const safeMultiPV = Math.max(1, Math.min(3, Number(multiPV) || 1));
+            const timeMs = options && options.timeMs !== undefined && options.timeMs !== null ? Number(options.timeMs) : null;
             const cacheKey = [String(fen), safeDepth, safeMultiPV,
-                Number.isFinite(botLevel) ? 'bot'+botLevel : 'analysis'].join('|');
+                Number.isFinite(botLevel) ? 'bot'+botLevel : 'analysis', timeMs === null ? 'defaultTime' : timeMs].join('|');
             if (LOCAL_ENGINE_CACHE.has(cacheKey)) return Promise.resolve(LOCAL_ENGINE_CACHE.get(cacheKey));
             const run = async () => {
                 await ensureLocalEngine();
@@ -843,7 +844,8 @@
                     try {
                         localEngineWorker.postMessage({type:'analyze',id,fen:String(fen),
                             depth:safeDepth,multiPV:safeMultiPV,
-                            botLevel:Number.isFinite(botLevel)?botLevel:null});
+                            botLevel:Number.isFinite(botLevel)?botLevel:null,
+                            timeMs:Number.isFinite(timeMs)?timeMs:null});
                     } catch (error) {
                         clearTimeout(timer);
                         localEnginePending.delete(id);
@@ -1038,8 +1040,8 @@
             badgeEl.className = 'px-2.5 py-0.5 rounded-full text-xs font-extrabold bg-chess-hover text-chess-textLight';
             badgeEl.textContent = 'Đang phân tích';
             try {
-                const before = await analyzeFen(beforeFen, 10, 1);
-                const after = await analyzeFen(afterFen, 10, 1);
+                const before = await analyzeFen(beforeFen, 10, 1, {timeMs:850});
+                const after = await analyzeFen(afterFen, 10, 1, {timeMs:850});
                 const beforeLine = primaryLine(before), afterLine = primaryLine(after);
                 const lossCp = Math.max(0, beforeLine.cpEquivalent + afterLine.cpEquivalent);
                 const expected = parseUciMove(before.bestmove);
@@ -1420,7 +1422,7 @@
                 }
                 const scores = [];
                 for (let i=0;i<positions.length;i++) {
-                    const result = await analyzeFen(positions[i].fen, 9, 1);
+                    const result = await analyzeFen(positions[i].fen, 9, 1, {timeMs:500});
                     const line = primaryLine(result);
                     scores.push({fen:positions[i].fen, line, sideScore:line.cpEquivalent, whiteEval:scoreInWhitePerspective(positions[i].fen,line), result});
                     document.getElementById('review-analysis-progress').textContent = `${i+1}/${positions.length} vị trí`;
