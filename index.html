@@ -1030,13 +1030,17 @@
             else playSound('move');
         }
 
-        function classifyLoss(lossCp, isBest) {
-            if (isBest) return {key:'best',name:'Tốt nhất',badge:'badge-best',icon:'✓',message:'Nước đi trùng với lựa chọn hàng đầu của VtiChess.'};
-            if (lossCp <= 10) return {key:'excellent',name:'Xuất sắc',badge:'badge-best',icon:'!',message:'Chỉ làm giảm lợi thế rất ít so với lựa chọn tốt nhất.'};
-            if (lossCp <= 25) return {key:'good',name:'Tốt',badge:'badge-good',icon:'✓',message:'Nước đi ổn; có lựa chọn chính xác hơn một chút.'};
-            if (lossCp <= 50) return {key:'inaccuracy',name:'Chưa chính xác',badge:'badge-inaccuracy',icon:'?!',message:'Nước đi làm giảm lợi thế đáng kể.'};
-            if (lossCp <= 100) return {key:'mistake',name:'Sai lầm',badge:'badge-mistake',icon:'?',message:'Nước đi bỏ lỡ cách chơi tốt hơn và khiến thế cờ xấu đi.'};
-            return {key:'blunder',name:'Blunder · Sai lầm lớn',badge:'badge-blunder',icon:'??',message:'Nước đi làm mất nhiều lợi thế theo đánh giá của engine.'};
+        function classifyLoss(lossCp, isBest, depth=4) {
+            // The local engine is intentionally lightweight. Use wider loss bands than a full-strength engine,
+            // and soften the label when the search did not complete at least depth 3.
+            const confidenceLoss = depth < 3 ? lossCp * 0.45 : lossCp;
+            const confidenceNote = depth < 3 ? ' (phân tích sơ bộ do độ sâu thấp)' : '';
+            if (isBest) return {key:'best',name:depth < 3 ? 'Tốt nhất tìm được · sơ bộ' : 'Tốt nhất tìm được',badge:'badge-best',icon:'✓',message:'Nước đi đứng đầu trong lượt tìm kiếm hiện tại.' + confidenceNote};
+            if (confidenceLoss <= 15) return {key:'excellent',name:'Rất tốt',badge:'badge-best',icon:'!',message:'Độ hụt điểm so với lựa chọn đầu bảng rất nhỏ.' + confidenceNote};
+            if (confidenceLoss <= 35) return {key:'good',name:'Tốt',badge:'badge-good',icon:'✓',message:'Nước đi hợp lý; còn lựa chọn được engine chấm nhỉnh hơn.' + confidenceNote};
+            if (confidenceLoss <= 70) return {key:'inaccuracy',name:'Chưa chính xác',badge:'badge-inaccuracy',icon:'?!',message:'Nước đi làm giảm lợi thế theo đánh giá hiện tại.' + confidenceNote};
+            if (confidenceLoss <= 150) return {key:'mistake',name:'Sai lầm',badge:'badge-mistake',icon:'?',message:'Nước đi bỏ lỡ cách chơi tốt hơn và làm xấu thế cờ.' + confidenceNote};
+            return {key:'blunder',name:'Sai lầm lớn',badge:'badge-blunder',icon:'??',message:'Nước đi làm mất nhiều lợi thế theo đánh giá hiện tại.' + confidenceNote};
         }
 
         async function evaluatePlayedMove(beforeFen, afterFen, move, mover) {
@@ -1046,13 +1050,15 @@
             badgeEl.className = 'px-2.5 py-0.5 rounded-full text-xs font-extrabold bg-chess-hover text-chess-textLight';
             badgeEl.textContent = 'Đang phân tích';
             try {
-                const before = await analyzeFen(beforeFen, 10, 1, {timeMs:850});
-                const after = await analyzeFen(afterFen, 10, 1, {timeMs:850});
+                const before = await analyzeFen(beforeFen, 10, 1, {timeMs:2200});
+                const after = await analyzeFen(afterFen, 10, 1, {timeMs:2200});
                 const beforeLine = primaryLine(before), afterLine = primaryLine(after);
-                const lossCp = Math.max(0, beforeLine.cpEquivalent + afterLine.cpEquivalent);
+                const rawLossCp = Math.max(0, beforeLine.cpEquivalent + afterLine.cpEquivalent);
+                const confidenceDepth = Math.min(beforeLine.depth || before.depth || 1, afterLine.depth || after.depth || 1);
+                const lossCp = confidenceDepth < 3 ? rawLossCp * 0.45 : rawLossCp;
                 const expected = parseUciMove(before.bestmove);
                 const isBest = !!expected && expected.from === move.from && expected.to === move.to && (expected.promotion || '') === (move.promotion || '');
-                const cls = classifyLoss(lossCp, isBest);
+                const cls = classifyLoss(rawLossCp, isBest, confidenceDepth);
                 badgeEl.className = `px-2.5 py-0.5 rounded-full text-xs font-extrabold ${cls.badge}`;
                 badgeEl.textContent = `${cls.name}${isBest ? '' : ` · −${(lossCp/100).toFixed(2)}`}`;
                 commentaryEl.textContent = `${cls.message} VtiChess đánh giá sau nước đi: ${formatWhiteScore(afterFen, afterLine)}. Gợi ý: ${uciLineToSan(beforeFen, before.bestmove, 1)}.`;
@@ -1428,7 +1434,7 @@
                 }
                 const scores = [];
                 for (let i=0;i<positions.length;i++) {
-                    const result = await analyzeFen(positions[i].fen, 9, 1, {timeMs:500});
+                    const result = await analyzeFen(positions[i].fen, 9, 1, {timeMs:1400});
                     const line = primaryLine(result);
                     scores.push({fen:positions[i].fen, line, sideScore:line.cpEquivalent, whiteEval:scoreInWhitePerspective(positions[i].fen,line), result});
                     document.getElementById('review-analysis-progress').textContent = `${i+1}/${positions.length} vị trí`;
@@ -1441,8 +1447,10 @@
                     const bestMove = before.result.bestmove;
                     const bestUci = parseUciMove(bestMove);
                     const isBest = !!bestUci && bestUci.from===record.move.from && bestUci.to===record.move.to && (bestUci.promotion||'')===(record.move.promotion||'');
-                    const lossCp = isBest ? 0 : Math.max(0, Math.min(3000, before.sideScore + after.sideScore));
-                    const cls = classifyLoss(lossCp,isBest);
+                    const rawLossCp = isBest ? 0 : Math.max(0, Math.min(3000, before.sideScore + after.sideScore));
+                    const confidenceDepth = Math.min(before.line?.depth || before.result?.depth || 1, after.line?.depth || after.result?.depth || 1);
+                    const lossCp = confidenceDepth < 3 ? rawLossCp * 0.45 : rawLossCp;
+                    const cls = classifyLoss(rawLossCp,isBest,confidenceDepth);
                     return {move:record.move,beforeFen:record.beforeFen,afterFen:record.afterFen,bestMove,pv:primaryLine(before.result).pv,lossCp,classification:cls};
                 });
                 const whiteLosses = reviewMoveResults.filter(x=>x.move.color==='w').map(x=>x.lossCp);
