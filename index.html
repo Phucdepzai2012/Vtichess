@@ -786,8 +786,14 @@
                         }
                     };
                     localEngineWorker.onerror = (event) => {
-                        const error = new Error('Không tải được engine worker: ' +
+                        const error = new Error('Engine worker gặp lỗi: ' +
                             (event.message || 'Kiểm tra đường dẫn engine/vti-engine.worker.js.'));
+                        localEngineReady = false;
+                        localEngineInitPromise = null;
+                        const failedWorker = localEngineWorker;
+                        localEngineWorker = null;
+                        if (failedWorker) { try { failedWorker.terminate(); } catch (_) {} }
+                        setEngineStatus('VtiChess Engine · lỗi, bấm để thử lại', 'error', error.message);
                         finish(error);
                         for (const [id, pending] of localEnginePending) {
                             clearTimeout(pending.timer);
