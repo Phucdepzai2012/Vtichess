@@ -17,7 +17,6 @@ let stockfishDisabled = false;
 let activeBackend = null;
 let activeJob = null;
 let queuedStockfishJobs = [];
-let stockfishBlobUrl = null;
 
 function sendReady(engine) {
   if (readySent) return;
@@ -82,17 +81,9 @@ function skillLevelFor(botLevel) {
 
 function startStockfish() {
   try {
-    const bootstrap = [
-      'self.Module = self.Module || {};',
-      'self.Module.locateFile = function(path, prefix) {',
-      '  if (String(path).toLowerCase().indexOf(".wasm") !== -1) return ' + JSON.stringify(STOCKFISH_WASM) + ';',
-      '  return (prefix || ' + JSON.stringify(STOCKFISH_BASE) + ') + path;',
-      '};',
-      'importScripts(' + JSON.stringify(STOCKFISH_JS) + ');'
-    ].join('\n');
-    const blob = new Blob([bootstrap], {type:'text/javascript'});
-    stockfishBlobUrl = URL.createObjectURL(blob);
-    stockfishWorker = new Worker(stockfishBlobUrl);
+    // Serve the nested worker from this repository instead of a blob: URL.
+    // This also works on hosts whose Content-Security-Policy disallows worker-src blob:.
+    stockfishWorker = new Worker(new URL('./stockfish.worker.js', self.location.href));
     stockfishWorker.onmessage = function(event) { handleStockfishLine(event.data); };
     stockfishWorker.onerror = function(event) {
       const details = event && event.message ? String(event.message) : 'Worker phát sinh lỗi không có thông tin chi tiết.';
@@ -120,11 +111,6 @@ function disableStockfish(reason) {
     try { stockfishWorker.terminate(); } catch (_) {}
     stockfishWorker = null;
   }
-  if (stockfishBlobUrl) {
-    try { URL.revokeObjectURL(stockfishBlobUrl); } catch (_) {}
-    stockfishBlobUrl = null;
-  }
-
   // Preserve the active request and queued requests when Stockfish fails mid-session.
   if (activeBackend === 'stockfish' && activeJob) {
     const interrupted = activeJob;
