@@ -724,7 +724,7 @@
             const ready = getReadyEngineWorkers();
             const stockfishCount = ready.filter(slot => String(slot.label || '').includes('Stockfish')).length;
             if (stockfishCount > 0) {
-                const label = 'Stockfish 18.0.8 · CPU workers ' + stockfishCount + '/' + ready.length;
+                const label = 'Stockfish 18.0.8 · CPU workers ' + stockfishCount + '/' + localEngineWorkers.filter(slot => !slot.failed).length;
                 setEngineStatus(label + ' · sẵn sàng', 'ready',
                     detail || ('Đang dùng ' + stockfishCount + ' worker CPU; số worker phụ thuộc tài nguyên thiết bị.'));
             } else {
@@ -811,7 +811,7 @@
                         slot.pendingCount = Math.max(0,slot.pendingCount-1);
                         pending.reject(new Error('Engine worker gặp lỗi: ' + message));
                     }
-                    if (!localEngineReady && !settled && attempted >= targetCount) {
+                    if (!localEngineWorkers.some(item => !item.failed && item.worker) && !settled && attempted >= targetCount) {
                         finish(new Error('Không khởi động được engine CPU: ' + message));
                     } else if (localEngineReady) {
                         updateEnginePoolStatus('VtiChess JS dự phòng', message);
