@@ -263,7 +263,7 @@ function analyzeJob(job) {
       postMessage({type:'result',id:job.id,fen:job.fen,depth:completedDepth,bestmove:chosen?chosen.move:'(none)',score,lines:top.map(c=>({score:c.score,pv:c.pv.join(' ')})),nodes:totalNodes});
       return;
     }
-    const state = {nodes:0,nodeLimit:Math.max(5000,Math.min(24000,70000-totalNodes)),deadline:Math.min(deadline,Date.now() + (depth <= 2 ? 400 : depth <= 4 ? 1000 : 1400)),aborted:false};
+    const state = {nodes:0,nodeLimit:Math.max(5000,Math.min(24000,70000-totalNodes)),deadline:Math.min(deadline,Date.now() + (depth <= 2 ? 400 : depth <= 4 ? 1400 : 1800)),aborted:false};
     stateKillers = [];
     historyHeuristic = new Map();
     const candidates = rootSearch(job.fen,depth,state,preferred);
