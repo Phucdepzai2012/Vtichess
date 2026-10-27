@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="Chess Lab Pro static GitHub Pages chess trainer with VtiChess analysis.">
-    <title>Chess Lab Pro - VtiChess Online API (GitHub Pages)</title>
+    <title>VtiChess - Local JavaScript Chess Engine</title>
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -266,7 +266,7 @@
                 <span id="current-mode-title" class="text-base font-extrabold text-chess-textLight flex items-center gap-2">
                     <i class="fa-solid fa-robot text-chess-green"></i> Đấu Cờ Với VtiChess Bot
                 </span>
-                <span id="engine-status" class="engine-status" role="button" tabindex="0" onclick="retryVtiChess()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();retryVtiChess();}" title="Nhấn để kiểm tra hoặc thử lại VtiChess Online API"><span class="engine-status-dot"></span><span id="engine-status-text">VtiChess Online API · chưa kiểm tra</span></span>
+                <span id="engine-status" class="engine-status" role="button" tabindex="0" onclick="retryVtiChess()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();retryVtiChess();}" title="Nhấn để kiểm tra hoặc khởi tạo lại engine cục bộ"><span class="engine-status-dot"></span><span id="engine-status-text">VtiChess Engine cục bộ · chưa kiểm tra</span></span>
             </div>
             <div class="flex items-center gap-2">
                 <button onclick="toggleAudio()" id="sound-btn" class="px-3 py-1.5 rounded-lg bg-chess-panel hover:bg-chess-hover text-chess-textLight text-xs font-bold transition flex items-center gap-2 border border-chess-border">
@@ -529,8 +529,8 @@
                         <div class="text-xs text-chess-textMuted font-semibold">
                             <span class="font-extrabold text-chess-textLight">Biến tốt nhất:</span> <span id="analysis-best-line" class="text-chess-green">Đang chờ VtiChess phân tích…</span>
                         </div>
-                        <div id="analysis-engine-meta" class="text-[10px] text-chess-textMuted font-bold">Engine: VtiChess Online API · depth tối đa 15</div>
-                        <div id="analysis-lines" class="engine-lines"><div class="text-[11px] text-chess-textMuted">VtiChess Online API trả về một biến chính cho mỗi vị trí.</div></div>
+                        <div id="analysis-engine-meta" class="text-[10px] text-chess-textMuted font-bold">Engine: VtiChess JS · tìm kiếm cục bộ (tối đa depth 5)</div>
+                        <div id="analysis-lines" class="engine-lines"><div class="text-[11px] text-chess-textMuted">VtiChess hiển thị các biến tốt nhất tìm được tại vị trí này.</div></div>
                     </div>
                     <div class="flex flex-col gap-2">
                         <button onclick="updateAnalysisEvaluation(true)" class="w-full py-2.5 btn-chess-green text-white font-extrabold rounded-xl text-xs transition border border-chess-border"><i class="fa-solid fa-rotate mr-1"></i> Phân Tích / Thử Lại</button>
@@ -1054,7 +1054,7 @@
                 latestPlayEvalWhite = scoreInWhitePerspective(afterFen, afterLine);
                 updateEvalBar();
             } catch (error) {
-                commentaryEl.textContent = 'Chưa lấy được phân tích VtiChess. Kiểm tra kết nối VtiChess Online API rồi thử lại. Nước đi vẫn hợp lệ.';
+                commentaryEl.textContent = 'Chưa lấy được phân tích VtiChess. Kiểm tra các tệp engine cục bộ rồi thử lại. Nước đi vẫn hợp lệ.';
                 badgeEl.className = 'px-2.5 py-0.5 rounded-full text-xs font-extrabold badge-inaccuracy';
                 badgeEl.textContent = 'Engine chưa sẵn sàng';
             }
@@ -1126,7 +1126,7 @@
                     if (game.game_over()) showGameResult();
                 }
             } catch (error) {
-                showToast('VtiChess chưa tải được. Hãy kiểm tra mạng và tải lại trang.');
+                showToast('VtiChess Engine lỗi. Hãy tải lại trang hoặc kiểm tra engine/vti-engine.worker.js và vendor/chess.js.');
             } finally {
                 botMoveInProgress = false;
                 document.getElementById('bot-thinking').classList.add('hidden');
@@ -1552,7 +1552,7 @@
                 updateAnalysisEvalBar(whiteEval);
                 document.getElementById('analysis-eval-badge').textContent=formatWhiteScore(fen,line);
                 document.getElementById('analysis-best-line').textContent=uciLineToSan(fen,line.pv,12);
-                document.getElementById('analysis-engine-meta').textContent=`VtiChess Online API · depth ${line.depth || result.depth} · 1 biến chính`;
+                document.getElementById('analysis-engine-meta').textContent=`VtiChess JS · depth ${line.depth || result.depth} · tìm kiếm cục bộ`;
                 const linesEl=document.getElementById('analysis-lines'); linesEl.innerHTML='';
                 result.lines.forEach((pv,index)=>{
                     const row=document.createElement('div'); row.className='engine-line-row';
