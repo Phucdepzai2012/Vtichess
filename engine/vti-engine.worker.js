@@ -1,0 +1,276 @@
+/* VtiChess local chess engine
+ * Original JavaScript search engine using negamax, alpha-beta pruning,
+ * iterative deepening, move ordering, quiescence search and a transposition table.
+ * Uses chess.js only for move legality and FEN state handling.
+ * This is not the Stockfish engine and does not contact any remote analysis API.
+ */
+importScripts('../vendor/chess.js');
+
+const MATE = 30000;
+const INF = 32000;
+const PIECE_VALUE = {p:100, n:320, b:335, r:500, q:900, k:0};
+const FILES = 'abcdefgh';
+const tt = new Map();
+let activeJob = 0;
+
+function moveUci(m) {
+  return m.from + m.to + (m.promotion || '');
+}
+function positionKey(chess) {
+  // Position identity includes side to move and castling/en-passant rights, but not move clocks.
+  return chess.fen().split(/\s+/).slice(0, 4).join(' ');
+}
+function scoreWhite(chess) {
+  const board = chess.board();
+  let score = 0, phase = 0, whiteBishops = 0, blackBishops = 0;
+  for (let r = 0; r < 8; r++) {
+    for (let c = 0; c < 8; c++) {
+      const p = board[r][c];
+      if (!p) continue;
+      const sign = p.color === 'w' ? 1 : -1;
+      const value = PIECE_VALUE[p.type] || 0;
+      score += sign * value;
+      if (p.type === 'n' || p.type === 'b') phase += 1;
+      if (p.type === 'r') phase += 2;
+      if (p.type === 'q') phase += 4;
+      if (p.type === 'b') p.color === 'w' ? whiteBishops++ : blackBishops++;
+      const centerDistance = Math.abs(3.5 - c) + Math.abs(3.5 - r);
+      const center = Math.round((7 - centerDistance) * 4);
+      if (p.type === 'p') {
+        const advance = p.color === 'w' ? 6 - r : r - 1;
+        score += sign * (Math.max(0, advance) * 7 + (c >= 2 && c <= 5 ? 5 : 0));
+        if ((p.color === 'w' && r === 1) || (p.color === 'b' && r === 6)) score += sign * 12;
+      } else if (p.type === 'n') {
+        score += sign * center * 2;
+        if ((p.color === 'w' && r === 7) || (p.color === 'b' && r === 0)) score -= sign * 12;
+      } else if (p.type === 'b') {
+        score += sign * center;
+      } else if (p.type === 'q') {
+        score += sign * Math.round(center * 0.35);
+      } else if (p.type === 'k') {
+        // Keep the king sheltered early; encourage central activity in simplified positions.
+        const endgame = phase <= 8;
+        score += sign * (endgame ? center * 2 : -center * 2);
+        if (!endgame && (c === 6 || c === 2) && (r === 7 || r === 0)) score += sign * 18;
+      }
+    }
+  }
+  if (whiteBishops >= 2) score += 25;
+  if (blackBishops >= 2) score -= 25;
+  return score;
+}
+function evaluate(chess) {
+  const white = scoreWhite(chess);
+  return chess.turn() === 'w' ? white : -white;
+}
+function terminalScore(chess, ply) {
+  if (!chess.game_over()) return null;
+  if (chess.in_check()) return -MATE + ply;
+  return 0;
+}
+function orderMoves(moves, ttMove, ply) {
+  const killers = stateKillers[ply] || [];
+  return moves.sort((a, b) => {
+    const score = m => {
+      let s = 0;
+      const u = moveUci(m);
+      if (u === ttMove) s += 1000000;
+      if (m.captured) s += 10000 + (PIECE_VALUE[m.captured] || 0) - (PIECE_VALUE[m.piece] || 0) / 10;
+      if (m.promotion) s += 8000 + (PIECE_VALUE[m.promotion] || 0);
+      if (killers.includes(u)) s += 4000;
+      if (m.flags && (m.flags.includes('k') || m.flags.includes('q'))) s += 150;
+      const historyKey = (m.color || '') + m.from + m.to;
+      s += historyHeuristic.get(historyKey) || 0;
+      return s;
+    };
+    return score(b) - score(a);
+  });
+}
+let stateKillers = [];
+let historyHeuristic = new Map();
+function qsearch(chess, alpha, beta, ply, qply, state) {
+  state.nodes++;
+  if ((state.nodes & 1023) === 0 && (Date.now() >= state.deadline || state.nodes >= state.nodeLimit)) {
+    state.aborted = true;
+    return evaluate(chess);
+  }
+  const terminal = terminalScore(chess, ply);
+  if (terminal !== null) return terminal;
+  const inCheck = chess.in_check();
+  const stand = evaluate(chess);
+  if (!inCheck) {
+    if (stand >= beta) return beta;
+    if (stand > alpha) alpha = stand;
+    if (qply <= 0) return stand;
+  } else if (qply <= -2) {
+    return stand - 80;
+  }
+  let moves = chess.moves({verbose:true});
+  if (!inCheck) moves = moves.filter(m => m.captured || m.promotion);
+  moves = orderMoves(moves, null, ply);
+  if (!moves.length) return inCheck ? -MATE + ply : alpha;
+  for (const m of moves) {
+    let made;
+    try { made = chess.move({from:m.from,to:m.to,promotion:m.promotion || 'q'}); } catch (_) { made = null; }
+    if (!made) continue;
+    const score = -qsearch(chess, -beta, -alpha, ply + 1, qply - 1, state);
+    chess.undo();
+    if (state.aborted) return alpha;
+    if (score >= beta) return beta;
+    if (score > alpha) alpha = score;
+  }
+  return alpha;
+}
+function search(chess, depth, alpha, beta, ply, state) {
+  state.nodes++;
+  if ((state.nodes & 1023) === 0 && (Date.now() >= state.deadline || state.nodes >= state.nodeLimit)) {
+    state.aborted = true;
+    return {score:evaluate(chess), pv:[]};
+  }
+  const terminal = terminalScore(chess, ply);
+  if (terminal !== null) return {score:terminal, pv:[]};
+  if (depth <= 0) return {score:qsearch(chess, alpha, beta, ply, 5, state), pv:[]};
+
+  const originalAlpha = alpha;
+  const key = positionKey(chess);
+  const cached = tt.get(key);
+  let ttMove = cached ? cached.best : null;
+  if (cached && cached.depth >= depth && ply > 0) {
+    const ts = cached.score > MATE - 1000 ? cached.score - ply :
+               cached.score < -MATE + 1000 ? cached.score + ply : cached.score;
+    if (cached.flag === 'exact') return {score:ts, pv:ttMove ? [ttMove] : []};
+    if (cached.flag === 'lower' && ts >= beta) return {score:ts, pv:ttMove ? [ttMove] : []};
+    if (cached.flag === 'upper' && ts <= alpha) return {score:ts, pv:ttMove ? [ttMove] : []};
+  }
+
+  const moves = orderMoves(chess.moves({verbose:true}), ttMove, ply);
+  if (!moves.length) return {score:chess.in_check() ? -MATE + ply : 0, pv:[]};
+  let bestScore = -INF, bestUci = null, bestPv = [];
+  for (const m of moves) {
+    let made;
+    try { made = chess.move({from:m.from,to:m.to,promotion:m.promotion || 'q'}); } catch (_) { made = null; }
+    if (!made) continue;
+    const child = search(chess, depth - 1, -beta, -alpha, ply + 1, state);
+    chess.undo();
+    if (state.aborted) break;
+    const score = -child.score;
+    const uci = moveUci(m);
+    if (score > bestScore) {
+      bestScore = score;
+      bestUci = uci;
+      bestPv = [uci].concat(child.pv || []);
+    }
+    if (score > alpha) alpha = score;
+    if (alpha >= beta) {
+      if (!m.captured && !m.promotion) {
+        const arr = stateKillers[ply] || (stateKillers[ply] = []);
+        if (!arr.includes(uci)) { arr.unshift(uci); if (arr.length > 2) arr.length = 2; }
+        const hkey = (m.color || '') + m.from + m.to;
+        historyHeuristic.set(hkey, Math.min(12000, (historyHeuristic.get(hkey) || 0) + depth * depth));
+      }
+      break;
+    }
+  }
+  if (state.aborted) return {score:bestScore === -INF ? evaluate(chess) : bestScore, pv:bestPv};
+  const stored = bestScore > MATE - 1000 ? bestScore + ply :
+                 bestScore < -MATE + 1000 ? bestScore - ply : bestScore;
+  const flag = bestScore <= originalAlpha ? 'upper' : bestScore >= beta ? 'lower' : 'exact';
+  tt.set(key, {depth,score:stored,flag,best:bestUci});
+  if (tt.size > 45000) {
+    // Keep memory bounded without spending time pruning every node.
+    let n = 0;
+    for (const k of tt.keys()) { tt.delete(k); if (++n >= 12000) break; }
+  }
+  return {score:bestScore === -INF ? evaluate(chess) : bestScore, pv:bestPv};
+}
+function rootSearch(fen, depth, state, preferredMove) {
+  const chess = new Chess(fen);
+  const rootMoves = orderMoves(chess.moves({verbose:true}), preferredMove, 0);
+  const candidates = [];
+  let alpha = -INF, beta = INF;
+  for (const m of rootMoves) {
+    if (Date.now() >= state.deadline || state.nodes >= state.nodeLimit) { state.aborted = true; break; }
+    const made = chess.move({from:m.from,to:m.to,promotion:m.promotion || 'q'});
+    if (!made) continue;
+    const child = search(chess, depth - 1, -beta, -alpha, 1, state);
+    chess.undo();
+    if (state.aborted) break;
+    candidates.push({move:moveUci(m), score:-child.score, pv:[moveUci(m)].concat(child.pv || [])});
+    if (-child.score > alpha) alpha = -child.score;
+  }
+  candidates.sort((a,b)=>b.score-a.score);
+  return candidates;
+}
+function depthForLevel(requestedDepth, botLevel) {
+  let cap = 5;
+  if (Number.isFinite(botLevel)) {
+    if (botLevel < 250) cap = 2;
+    else if (botLevel < 700) cap = 3;
+    else if (botLevel < 1400) cap = 4;
+    else cap = 5;
+  }
+  return Math.max(1, Math.min(cap, Math.round(Number(requestedDepth) || 3)));
+}
+function chooseWeakerMove(candidates, botLevel) {
+  if (!Number.isFinite(botLevel) || candidates.length < 2 || botLevel >= 2400) return candidates[0];
+  const weakness = Math.max(0, Math.min(1, (2400 - botLevel) / 2400));
+  if (Math.random() >= weakness * 0.72) return candidates[0];
+  const pool = candidates.slice(0, Math.min(candidates.length, botLevel < 500 ? 8 : botLevel < 1200 ? 5 : 3));
+  const weights = pool.map((_,i)=>1/(1+i*i*0.7));
+  let pick = Math.random()*weights.reduce((a,b)=>a+b,0);
+  for (let i=0;i<pool.length;i++) { pick-=weights[i]; if (pick<=0) return pool[i]; }
+  return pool[pool.length-1];
+}
+function analyzeJob(job) {
+  const chess = new Chess(job.fen);
+  const legal = chess.moves({verbose:true});
+  if (!legal.length) {
+    postMessage({type:'result',id:job.id,fen:job.fen,depth:0,bestmove:'(none)',score:terminalScore(chess,0)||0,lines:[],nodes:0});
+    return;
+  }
+  const botLevel = Number.isFinite(Number(job.botLevel)) ? Number(job.botLevel) : null;
+  const requestedDepth = depthForLevel(job.depth, botLevel);
+  const maxTime = botLevel === null ? 1800 : 1200;
+  const deadline = Date.now() + maxTime;
+  let bestCandidates = legal.slice(0,1).map(m=>({move:moveUci(m),score:evaluate(chess),pv:[moveUci(m)]}));
+  let completedDepth = 0, preferred = null, totalNodes = 0;
+  function iterate(depth) {
+    if (job.id !== activeJob) return;
+    if (depth > requestedDepth || Date.now() >= deadline || totalNodes >= 70000) {
+      const chosen = chooseWeakerMove(bestCandidates, botLevel);
+      const top = bestCandidates.slice(0,Math.max(1,Math.min(3,Number(job.multiPV)||1)));
+      const score = chosen ? chosen.score : evaluate(chess);
+      postMessage({type:'result',id:job.id,fen:job.fen,depth:completedDepth,bestmove:chosen?chosen.move:'(none)',score,lines:top.map(c=>({score:c.score,pv:c.pv.join(' ')})),nodes:totalNodes});
+      return;
+    }
+    const state = {nodes:0,nodeLimit:Math.max(5000,Math.min(24000,70000-totalNodes)),deadline:Math.min(deadline,Date.now() + (depth <= 2 ? 350 : depth <= 4 ? 550 : 750)),aborted:false};
+    stateKillers = [];
+    historyHeuristic = new Map();
+    const candidates = rootSearch(job.fen,depth,state,preferred);
+    totalNodes += state.nodes;
+    if (!state.aborted && candidates.length) {
+      bestCandidates = candidates;
+      preferred = candidates[0].move;
+      completedDepth = depth;
+      postMessage({type:'progress',id:job.id,depth,nodes:totalNodes,score:candidates[0].score});
+    }
+    if (state.aborted || Date.now() >= deadline || totalNodes >= 70000) {
+      const chosen = chooseWeakerMove(bestCandidates, botLevel);
+      const top = bestCandidates.slice(0,Math.max(1,Math.min(3,Number(job.multiPV)||1)));
+      postMessage({type:'result',id:job.id,fen:job.fen,depth:completedDepth,bestmove:chosen?chosen.move:'(none)',score:chosen?chosen.score:evaluate(chess),lines:top.map(c=>({score:c.score,pv:c.pv.join(' ')})),nodes:totalNodes});
+    } else {
+      setTimeout(()=>iterate(depth+1),0);
+    }
+  }
+  iterate(1);
+}
+onmessage = function(event) {
+  const msg = event.data || {};
+  if (msg.type === 'stop') { activeJob++; return; }
+  if (msg.type !== 'analyze') return;
+  activeJob = Number(msg.id) || activeJob + 1;
+  const job = {...msg, id:activeJob};
+  try { analyzeJob(job); }
+  catch (error) { postMessage({type:'error',id:job.id,message:error && error.message ? error.message : String(error)}); }
+};
+postMessage({type:'ready',engine:'VtiChess JS'});
