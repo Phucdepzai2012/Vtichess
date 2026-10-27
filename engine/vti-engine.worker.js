@@ -152,7 +152,18 @@ function search(chess, depth, alpha, beta, ply, state) {
     if (cached.flag === 'upper' && ts <= alpha) return {score:ts, pv:ttMove ? [ttMove] : []};
   }
 
-  const moves = orderMoves(legalMoves, ttMove, ply);
+  let moves = orderMoves(legalMoves, ttMove, ply);
+  // Selective-width alpha-beta keeps the browser responsive while preserving tactical moves.
+  // Captures, promotions, TT move and killer moves are ordered first and naturally survive the cutoff.
+  if (depth >= 2) {
+    const width = depth >= 4 ? 9 : depth === 3 ? 11 : 13;
+    if (moves.length > width) {
+      const tactical = moves.filter(m => m.captured || m.promotion);
+      const selected = moves.slice(0, width);
+      for (const m of tactical) if (!selected.includes(m)) selected.push(m);
+      moves = selected;
+    }
+  }
   let bestScore = -INF, bestUci = null, bestPv = [];
   for (const m of moves) {
     let made;
