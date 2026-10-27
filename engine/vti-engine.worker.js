@@ -46,11 +46,14 @@ function scoreWhite(chess) {
       const center = Math.round((7 - centerDistance) * 4);
       if (p.type === 'p') {
         const advance = p.color === 'w' ? 6 - r : r - 1;
-        score += sign * (Math.max(0, advance) * 7 + (c >= 2 && c <= 5 ? 5 : 0));
+        score += sign * (Math.max(0, advance) * 7 + (c >= 2 && c <= 5 ? 10 : 0));
+        // Reward occupying the four central squares; this prevents harmless piece shuffles
+        // from scoring above sound center openings such as 1.e4 and 1.d4.
+        if ((r === 3 || r === 4) && (c === 3 || c === 4)) score += sign * 10;
         if ((p.color === 'w' && r === 1) || (p.color === 'b' && r === 6)) score += sign * 12;
       } else if (p.type === 'n') {
-        score += sign * center * 2;
-        if ((p.color === 'w' && r === 7) || (p.color === 'b' && r === 0)) score -= sign * 12;
+        score += sign * center;
+        if ((p.color === 'w' && r === 7) || (p.color === 'b' && r === 0)) score -= sign * 15;
       } else if (p.type === 'b') {
         score += sign * center;
       } else if (p.type === 'q') {
@@ -224,20 +227,23 @@ function rootSearch(fen, depth, state, preferredMove) {
   return candidates;
 }
 function depthForLevel(requestedDepth, botLevel) {
-  let cap = 5;
+  let cap = 6;
   if (Number.isFinite(botLevel)) {
     if (botLevel < 250) cap = 2;
     else if (botLevel < 700) cap = 3;
     else if (botLevel < 1400) cap = 4;
-    else cap = 5;
+    else if (botLevel < 3000) cap = 5;
+    else cap = 6;
   }
   return Math.max(1, Math.min(cap, Math.round(Number(requestedDepth) || 3)));
 }
 function chooseWeakerMove(candidates, botLevel) {
-  if (!Number.isFinite(botLevel) || candidates.length < 2 || botLevel >= 2400) return candidates[0];
-  const weakness = Math.max(0, Math.min(1, (2400 - botLevel) / 2400));
-  if (Math.random() >= weakness * 0.72) return candidates[0];
-  const pool = candidates.slice(0, Math.min(candidates.length, botLevel < 500 ? 8 : botLevel < 1200 ? 5 : 3));
+  if (!Number.isFinite(botLevel) || candidates.length < 2 || botLevel >= 1400) return candidates[0];
+  // Random inaccuracies are confined to intentionally low-strength settings.
+  // At intermediate/strong settings, do not sabotage the engine's best move.
+  const weakness = Math.max(0, Math.min(1, (1400 - botLevel) / 1400));
+  if (Math.random() >= weakness * 0.55) return candidates[0];
+  const pool = candidates.slice(0, Math.min(candidates.length, botLevel < 350 ? 8 : botLevel < 800 ? 5 : 3));
   const weights = pool.map((_,i)=>1/(1+i*i*0.7));
   let pick = Math.random()*weights.reduce((a,b)=>a+b,0);
   for (let i=0;i<pool.length;i++) { pick-=weights[i]; if (pick<=0) return pool[i]; }
@@ -253,7 +259,8 @@ function analyzeJob(job) {
   const botLevel = job.botLevel !== null && job.botLevel !== undefined && Number.isFinite(Number(job.botLevel)) ? Number(job.botLevel) : null;
   const requestedDepth = depthForLevel(job.depth, botLevel);
   const requestedTime = job.timeMs !== null && job.timeMs !== undefined && Number.isFinite(Number(job.timeMs)) ? Number(job.timeMs) : null;
-  const maxTime = requestedTime === null ? (botLevel === null ? 4500 : 2300) : Math.max(250, Math.min(3500, requestedTime));
+  const botTime = !Number.isFinite(botLevel) ? 4500 : botLevel < 500 ? 1000 : botLevel < 1200 ? 2200 : botLevel < 2000 ? 3500 : botLevel < 3000 ? 5000 : 6500;
+  const maxTime = requestedTime === null ? botTime : Math.max(250, Math.min(7500, requestedTime));
   const deadline = Date.now() + maxTime;
   let bestCandidates = legal.slice(0,1).map(m=>({move:moveUci(m),score:evaluate(chess),pv:[moveUci(m)]}));
   let completedDepth = 0, preferred = null, totalNodes = 0;
@@ -266,7 +273,7 @@ function analyzeJob(job) {
       postMessage({type:'result',id:job.id,fen:job.fen,depth:completedDepth,bestmove:chosen?chosen.move:'(none)',score,lines:top.map(c=>({score:c.score,pv:c.pv.join(' ')})),nodes:totalNodes});
       return;
     }
-    const state = {nodes:0,nodeLimit:Math.max(5000,Math.min(24000,70000-totalNodes)),deadline:Math.min(deadline,Date.now() + (depth <= 2 ? 400 : depth <= 4 ? 2200 : 3000)),aborted:false};
+    const state = {nodes:0,nodeLimit:Math.max(5000,Math.min(24000,70000-totalNodes)),deadline:Math.min(deadline,Date.now() + (depth <= 2 ? 600 : depth <= 4 ? 4200 : 5200)),aborted:false};
     stateKillers = [];
     historyHeuristic = new Map();
     const candidates = rootSearch(job.fen,depth,state,preferred);
