@@ -69,10 +69,12 @@ function evaluate(chess) {
   const white = scoreWhite(chess);
   return chess.turn() === 'w' ? white : -white;
 }
-function terminalScore(chess, ply) {
-  if (!chess.game_over()) return null;
-  if (chess.in_check()) return -MATE + ply;
-  return 0;
+function terminalScore(chess, ply, legalMoves) {
+  if (legalMoves && legalMoves.length === 0) return chess.in_check() ? -MATE + ply : 0;
+  const fields = chess.fen().split(/\\s+/);
+  // Fifty-move rule. Checkmate/stalemate is tested first, so a mating position remains mate.
+  if (Number(fields[4]) >= 100) return 0;
+  return null;
 }
 function orderMoves(moves, ttMove, ply) {
   const killers = stateKillers[ply] || [];
@@ -94,15 +96,17 @@ function orderMoves(moves, ttMove, ply) {
 }
 let stateKillers = [];
 let historyHeuristic = new Map();
-function qsearch(chess, alpha, beta, ply, qply, state) {
+function qsearch(chess, alpha, beta, ply, qply, state, knownMoves) {
   state.nodes++;
   if ((state.nodes & 1023) === 0 && (Date.now() >= state.deadline || state.nodes >= state.nodeLimit)) {
     state.aborted = true;
     return evaluate(chess);
   }
-  const terminal = terminalScore(chess, ply);
+  let moves = knownMoves || chess.moves({verbose:true});
+  const terminal = terminalScore(chess, ply, moves);
   if (terminal !== null) return terminal;
   const inCheck = chess.in_check();
+  if (!moves.length) return inCheck ? -MATE + ply : 0;
   const stand = evaluate(chess);
   if (!inCheck) {
     if (stand >= beta) return beta;
@@ -111,7 +115,6 @@ function qsearch(chess, alpha, beta, ply, qply, state) {
   } else if (qply <= -2) {
     return stand - 80;
   }
-  let moves = chess.moves({verbose:true});
   if (!inCheck) moves = moves.filter(m => m.captured || m.promotion);
   moves = orderMoves(moves, null, ply);
   if (!moves.length) return inCheck ? -MATE + ply : alpha;
@@ -133,9 +136,11 @@ function search(chess, depth, alpha, beta, ply, state) {
     state.aborted = true;
     return {score:evaluate(chess), pv:[]};
   }
-  const terminal = terminalScore(chess, ply);
+  const legalMoves = chess.moves({verbose:true});
+  const terminal = terminalScore(chess, ply, legalMoves);
   if (terminal !== null) return {score:terminal, pv:[]};
-  if (depth <= 0) return {score:qsearch(chess, alpha, beta, ply, 5, state), pv:[]};
+  if (!legalMoves.length) return {score:chess.in_check() ? -MATE + ply : 0, pv:[]};
+  if (depth <= 0) return {score:qsearch(chess, alpha, beta, ply, 5, state, legalMoves), pv:[]};
 
   const originalAlpha = alpha;
   const key = positionKey(chess);
@@ -149,8 +154,7 @@ function search(chess, depth, alpha, beta, ply, state) {
     if (cached.flag === 'upper' && ts <= alpha) return {score:ts, pv:ttMove ? [ttMove] : []};
   }
 
-  const moves = orderMoves(chess.moves({verbose:true}), ttMove, ply);
-  if (!moves.length) return {score:chess.in_check() ? -MATE + ply : 0, pv:[]};
+  const moves = orderMoves(legalMoves, ttMove, ply);
   let bestScore = -INF, bestUci = null, bestPv = [];
   for (const m of moves) {
     let made;
