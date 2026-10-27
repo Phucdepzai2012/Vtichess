@@ -2,9 +2,11 @@
  * Stockfish.js runs in a nested browser worker; move analysis stays on-device.
  * If the CDN/WASM cannot load, the existing VtiChess JS worker remains available as fallback.
  */
-const STOCKFISH_BASE = 'https://cdn.jsdelivr.net/npm/stockfish@19.0.1/bin/';
-const STOCKFISH_JS = STOCKFISH_BASE + 'stockfish-19-lite-single.js';
-const STOCKFISH_WASM = STOCKFISH_BASE + 'stockfish-19-lite-single.wasm';
+// Pin 18.0.8: Stockfish.js 19.0.1 Lite Single has a confirmed search hang
+// on a tactical position (upstream nmrugg/stockfish.js issue #124).
+const STOCKFISH_BASE = 'https://cdn.jsdelivr.net/npm/stockfish@18.0.8/bin/';
+const STOCKFISH_JS = STOCKFISH_BASE + 'stockfish-18-lite-single.js';
+const STOCKFISH_WASM = STOCKFISH_BASE + 'stockfish-18-lite-single.wasm';
 
 let fallbackWorker = null;
 let fallbackReady = false;
@@ -174,8 +176,8 @@ function handleStockfishLine(data) {
   if (line === 'readyok') {
     if (stockfishDisabled) return;
     stockfishReady = true;
-    postMessage({type:'engine', engine:'Stockfish 19 Lite WASM', detail:'Stockfish chạy trong trình duyệt; không gửi thế cờ lên API phân tích.'});
-    sendReady('Stockfish 19 Lite WASM');
+    postMessage({type:'engine', engine:'Stockfish 18.0.8 Lite Single WASM', detail:'Stockfish chạy trong trình duyệt; không gửi thế cờ lên API phân tích.'});
+    sendReady('Stockfish 18.0.8 Lite Single WASM');
     return;
   }
   if (!activeJob || activeBackend !== 'stockfish') return;
@@ -204,7 +206,7 @@ function handleStockfishLine(data) {
     bucket.set(multipv, {score, pv, depth, multipv});
     if (depth > activeJob.lastProgressDepth) {
       activeJob.lastProgressDepth = depth;
-      postMessage({type:'progress', id:activeJob.id, depth, nodes:activeJob.nodes || 0, score, engine:'Stockfish 19 Lite WASM'});
+      postMessage({type:'progress', id:activeJob.id, depth, nodes:activeJob.nodes || 0, score, engine:'Stockfish 18.0.8 Lite Single WASM'});
     }
     return;
   }
@@ -250,7 +252,7 @@ function handleStockfishLine(data) {
       postMessage({
         type:'result', id:job.id, fen:job.fen, depth:selectedDepth,
         bestmove, score:primary ? primary.score : (lines[0] ? lines[0].score : 0),
-        lines, nodes:job.nodes || 0, engine:'Stockfish 19 Lite WASM'
+        lines, nodes:job.nodes || 0, engine:'Stockfish 18.0.8 Lite Single WASM'
       });
     }
     dispatchNextStockfishJob();
