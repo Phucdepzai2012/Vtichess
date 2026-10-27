@@ -690,7 +690,7 @@
         let latestPlayEvalWhite = 0;
         let botMoveInProgress = false;
 
-        // VtiChess local engine bridge. No public VtiChess API and no remote analysis calls.
+        // Stockfish WASM runs in the browser; the VtiChess JS search worker is the offline fallback.
         let localEngineWorker = null;
         let localEngineReady = false;
         let localEngineInitPromise = null;
@@ -731,6 +731,7 @@
             if (localEngineInitPromise) return localEngineInitPromise;
             localEngineInitPromise = new Promise((resolve, reject) => {
                 let settled = false;
+                let engineLabel = 'VtiChess Engine';
                 const finish = (err) => {
                     if (settled) return;
                     settled = true;
@@ -741,20 +742,26 @@
                         reject(err);
                     } else {
                         localEngineReady = true;
-                        setEngineStatus('VtiChess Engine · sẵn sàng', 'ready');
+                        setEngineStatus(`${engineLabel} · sẵn sàng`, 'ready');
                         resolve();
                     }
                 };
                 const readyTimer = setTimeout(() => finish(new Error(
-                    'Không khởi tạo được engine trong 8 giây. Kiểm tra engine/vti-engine.worker.js và vendor/chess.js trong repository.'
+                    'Không khởi tạo được engine trong 8 giây. Kiểm tra engine/vti-engine-adapter.worker.js và engine/vti-engine.worker.js.'
                 )), 8000);
                 try {
-                    localEngineWorker = new Worker(new URL('./engine/vti-engine.worker.js', window.location.href));
+                    localEngineWorker = new Worker(new URL('./engine/vti-engine-adapter.worker.js', window.location.href));
                     localEngineWorker.onmessage = (event) => {
                         const msg = event.data || {};
-                        if (msg.type === 'ready') { finish(null); return; }
+                        if (msg.type === 'engine') {
+                            engineLabel = msg.engine || engineLabel;
+                            setEngineStatus(`${engineLabel} · sẵn sàng`, 'ready', msg.detail || 'Engine phân tích ngay trên thiết bị.');
+                            return;
+                        }
+                        if (msg.type === 'ready') { engineLabel = msg.engine || engineLabel; finish(null); return; }
                         if (msg.type === 'progress') {
-                            setEngineStatus(`VtiChess đang tính · độ sâu ${msg.depth}`, 'loading',
+                            engineLabel = msg.engine || engineLabel;
+                            setEngineStatus(`${engineLabel} đang tính · độ sâu ${msg.depth}`, 'loading',
                                 `Đã xét khoảng ${Number(msg.nodes || 0).toLocaleString('vi-VN')} nút.`);
                             return;
                         }
@@ -776,18 +783,19 @@
                                 localScoreLine(line.score, line.pv, msg.depth, index + 1));
                             const chosenLine = lines.find(line => line.pv && line.pv.startsWith(msg.bestmove));
                             const chosen = localScoreLine(msg.score, chosenLine ? chosenLine.pv : msg.bestmove, msg.depth, 1);
-                            setEngineStatus('VtiChess Engine · sẵn sàng', 'ready',
-                                `Engine JavaScript cục bộ · depth ${msg.depth} · ${Number(msg.nodes || 0).toLocaleString('vi-VN')} nút.`);
+                            engineLabel = msg.engine || engineLabel;
+                            setEngineStatus(`${engineLabel} · sẵn sàng`, 'ready',
+                                `Depth ${msg.depth} · ${Number(msg.nodes || 0).toLocaleString('vi-VN')} nút · phân tích trên thiết bị.`);
                             pending.resolve({
                                 bestmove:msg.bestmove || '(none)', lines:lines.length ? lines : [chosen],
                                 fen:msg.fen, depth:msg.depth || 1, nodes:msg.nodes || 0,
-                                source:'VtiChess JS Engine', score:chosen
+                                source:msg.engine || 'VtiChess JS Engine', engine:msg.engine || 'VtiChess JS Engine', score:chosen
                             });
                         }
                     };
                     localEngineWorker.onerror = (event) => {
                         const error = new Error('Engine worker gặp lỗi: ' +
-                            (event.message || 'Kiểm tra đường dẫn engine/vti-engine.worker.js.'));
+                            (event.message || 'Kiểm tra đường dẫn engine/vti-engine-adapter.worker.js.'));
                         localEngineReady = false;
                         localEngineInitPromise = null;
                         const failedWorker = localEngineWorker;
@@ -1654,9 +1662,9 @@
         window.onload = function() {
             renderPlayBoard();
             updateBotElo(1500);
-            setEngineStatus('VtiChess Engine · đang khởi tạo', 'loading', 'Engine JavaScript cục bộ; không gọi API bên ngoài.');
+            setEngineStatus('Stockfish WASM · đang khởi tạo', 'loading', 'Tìm kiếm chạy trên thiết bị; không gửi thế cờ lên API phân tích.');
             document.getElementById('live-textbook-comment').textContent =
-                'VtiChess Engine chạy ngay trong trình duyệt, không cần API phân tích bên ngoài.';
+                'Stockfish chạy trong trình duyệt; VtiChess JS sẽ tự dùng nếu Stockfish không tải được.';
             ensureLocalEngine().catch(error => {
                 document.getElementById('live-textbook-comment').textContent =
                     'Engine khởi tạo lỗi: ' + (error.message || error);
