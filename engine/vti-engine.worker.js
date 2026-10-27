@@ -79,27 +79,25 @@ function terminalScore(chess, ply, legalMoves) {
 }
 function orderMoves(moves, ttMove, ply) {
   const killers = stateKillers[ply] || [];
-  return moves.sort((a, b) => {
-    const score = m => {
-      let s = 0;
-      const u = moveUci(m);
-      if (u === ttMove) s += 1000000;
-      if (m.captured) s += 10000 + (PIECE_VALUE[m.captured] || 0) - (PIECE_VALUE[m.piece] || 0) / 10;
-      if (m.promotion) s += 8000 + (PIECE_VALUE[m.promotion] || 0);
-      if (killers.includes(u)) s += 4000;
-      if (m.flags && (m.flags.includes('k') || m.flags.includes('q'))) s += 150;
-      const historyKey = (m.color || '') + m.from + m.to;
-      s += historyHeuristic.get(historyKey) || 0;
-      return s;
-    };
-    return score(b) - score(a);
-  });
+  // Compute each move's ordering score once; Array.sort otherwise recalculates it repeatedly.
+  return moves.map(move => {
+    let score = 0;
+    const u = moveUci(move);
+    if (u === ttMove) score += 1000000;
+    if (move.captured) score += 10000 + (PIECE_VALUE[move.captured] || 0) - (PIECE_VALUE[move.piece] || 0) / 10;
+    if (move.promotion) score += 8000 + (PIECE_VALUE[move.promotion] || 0);
+    if (killers.includes(u)) score += 4000;
+    if (move.flags && (move.flags.includes('k') || move.flags.includes('q'))) score += 150;
+    const historyKey = (move.color || '') + move.from + move.to;
+    score += historyHeuristic.get(historyKey) || 0;
+    return {move, score};
+  }).sort((a, b) => b.score - a.score).map(item => item.move);
 }
 let stateKillers = [];
 let historyHeuristic = new Map();
 function qsearch(chess, alpha, beta, ply, qply, state, knownMoves) {
   state.nodes++;
-  if ((state.nodes & 1023) === 0 && (Date.now() >= state.deadline || state.nodes >= state.nodeLimit)) {
+  if ((state.nodes & 127) === 0 && (Date.now() >= state.deadline || state.nodes >= state.nodeLimit)) {
     state.aborted = true;
     return evaluate(chess);
   }
@@ -114,8 +112,6 @@ function qsearch(chess, alpha, beta, ply, qply, state, knownMoves) {
     if (stand >= beta) return stand; // fail-soft: preserve the actual bound score
     if (stand > alpha) alpha = stand;
     if (qply <= 0) return stand;
-  } else if (qply <= -2) {
-    return stand - 80;
   }
   let tacticalMoves = moves;
   if (!inCheck) tacticalMoves = moves.filter(m => m.captured || m.promotion);
@@ -136,9 +132,25 @@ function qsearch(chess, alpha, beta, ply, qply, state, knownMoves) {
 }
 function search(chess, depth, alpha, beta, ply, state) {
   state.nodes++;
-  if ((state.nodes & 1023) === 0 && (Date.now() >= state.deadline || state.nodes >= state.nodeLimit)) {
+  if ((state.nodes & 127) === 0 && (Date.now() >= state.deadline || state.nodes >= state.nodeLimit)) {
     state.aborted = true;
     return {score:evaluate(chess), pv:[]};
+  }
+  const originalAlpha = alpha;
+  // Probe the transposition table before generating legal moves: a usable hit can skip
+  // the most expensive work at this node.
+  let key = null, cached = null, ttMove = null;
+  if (depth > 0) {
+    key = positionKey(chess);
+    cached = tt.get(key);
+    ttMove = cached ? cached.best : null;
+    if (cached && cached.depth >= depth && ply > 0) {
+      const ts = cached.score > MATE - 1000 ? cached.score - ply :
+                 cached.score < -MATE + 1000 ? cached.score + ply : cached.score;
+      if (cached.flag === 'exact') return {score:ts, pv:ttMove ? [ttMove] : []};
+      if (cached.flag === 'lower' && ts >= beta) return {score:ts, pv:ttMove ? [ttMove] : []};
+      if (cached.flag === 'upper' && ts <= alpha) return {score:ts, pv:ttMove ? [ttMove] : []};
+    }
   }
   const legalMoves = chess.moves({verbose:true});
   const terminal = terminalScore(chess, ply, legalMoves);
@@ -146,36 +158,34 @@ function search(chess, depth, alpha, beta, ply, state) {
   if (!legalMoves.length) return {score:chess.in_check() ? -MATE + ply : 0, pv:[]};
   if (depth <= 0) return {score:qsearch(chess, alpha, beta, ply, 5, state, legalMoves), pv:[]};
 
-  const originalAlpha = alpha;
-  const key = positionKey(chess);
-  const cached = tt.get(key);
-  let ttMove = cached ? cached.best : null;
-  if (cached && cached.depth >= depth && ply > 0) {
-    const ts = cached.score > MATE - 1000 ? cached.score - ply :
-               cached.score < -MATE + 1000 ? cached.score + ply : cached.score;
-    if (cached.flag === 'exact') return {score:ts, pv:ttMove ? [ttMove] : []};
-    if (cached.flag === 'lower' && ts >= beta) return {score:ts, pv:ttMove ? [ttMove] : []};
-    if (cached.flag === 'upper' && ts <= alpha) return {score:ts, pv:ttMove ? [ttMove] : []};
-  }
-
-  let moves = orderMoves(legalMoves, ttMove, ply);
-  // Selective-width alpha-beta keeps the browser responsive while preserving tactical moves.
-  // Captures, promotions, TT move and killer moves are ordered first and naturally survive the cutoff.
-  if (depth >= 2) {
-    const width = depth >= 4 ? 9 : depth === 3 ? 11 : 13;
-    if (moves.length > width) {
-      const tactical = moves.filter(m => m.captured || m.promotion);
-      const selected = moves.slice(0, width);
-      for (const m of tactical) if (!selected.includes(m)) selected.push(m);
-      moves = selected;
-    }
-  }
+  const moves = orderMoves(legalMoves, ttMove, ply);
+  const inCheck = chess.in_check();
   let bestScore = -INF, bestUci = null, bestPv = [];
+  let moveIndex = 0;
   for (const m of moves) {
+    moveIndex++;
     let made;
     try { made = chess.move({from:m.from,to:m.to,promotion:m.promotion || 'q'}); } catch (_) { made = null; }
     if (!made) continue;
-    const child = search(chess, depth - 1, -beta, -alpha, ply + 1, state);
+    const quiet = !m.captured && !m.promotion && !(m.flags && (m.flags.includes('k') || m.flags.includes('q')));
+    const reducible = depth >= 3 && moveIndex >= 5 && quiet && !inCheck;
+    let child;
+    if (moveIndex === 1) {
+      child = search(chess, depth - 1, -beta, -alpha, ply + 1, state);
+    } else {
+      // PVS searches later moves with a narrow window first; only competitive moves
+      // get a full-window re-search. Late quiet moves are reduced by one ply, then
+      // restored to full depth whenever they challenge alpha.
+      child = search(chess, depth - 1 - (reducible ? 1 : 0), -alpha - 1, -alpha, ply + 1, state);
+      let probeScore = -child.score;
+      if (reducible && !state.aborted && probeScore > alpha) {
+        child = search(chess, depth - 1, -alpha - 1, -alpha, ply + 1, state);
+        probeScore = -child.score;
+      }
+      if (!state.aborted && probeScore > alpha && probeScore < beta) {
+        child = search(chess, depth - 1, -beta, -alpha, ply + 1, state);
+      }
+    }
     chess.undo();
     if (state.aborted) break;
     const score = -child.score;
@@ -259,7 +269,7 @@ function analyzeJob(job) {
   const botLevel = job.botLevel !== null && job.botLevel !== undefined && Number.isFinite(Number(job.botLevel)) ? Number(job.botLevel) : null;
   const requestedDepth = depthForLevel(job.depth, botLevel);
   const requestedTime = job.timeMs !== null && job.timeMs !== undefined && Number.isFinite(Number(job.timeMs)) ? Number(job.timeMs) : null;
-  const botTime = !Number.isFinite(botLevel) ? 4500 : botLevel < 500 ? 1000 : botLevel < 1200 ? 2200 : botLevel < 2000 ? 3500 : botLevel < 3000 ? 5000 : 6500;
+  const botTime = !Number.isFinite(botLevel) ? 700 : botLevel < 500 ? 1000 : botLevel < 1200 ? 2200 : botLevel < 2000 ? 3500 : botLevel < 3000 ? 5000 : 6500;
   const maxTime = requestedTime === null ? botTime : Math.max(250, Math.min(7500, requestedTime));
   const deadline = Date.now() + maxTime;
   let bestCandidates = legal.slice(0,1).map(m=>({move:moveUci(m),score:evaluate(chess),pv:[moveUci(m)]}));
