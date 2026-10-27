@@ -29,7 +29,7 @@ function startFallback() {
       const msg = event.data || {};
       if (msg.type === 'ready') {
         fallbackReady = true;
-        sendReady('VtiChess JS dự phòng');
+        if (stockfishDisabled) sendReady('VtiChess JS dự phòng');
         return;
       }
       if (msg.type === 'result') {
@@ -90,7 +90,7 @@ function startStockfish() {
     stockfishWorker.postMessage('uci');
     setTimeout(function() {
       if (!stockfishReady) disableStockfish('Stockfish WASM khởi tạo quá lâu; dùng engine dự phòng.');
-    }, 12000);
+    }, 6500);
   } catch (error) {
     disableStockfish('Không tạo được Stockfish WASM: ' + (error && error.message || error));
   }
