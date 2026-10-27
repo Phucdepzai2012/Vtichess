@@ -756,6 +756,10 @@
                         if (msg.type === 'engine') {
                             engineLabel = msg.engine || engineLabel;
                             setEngineStatus(`${engineLabel} · sẵn sàng`, 'ready', msg.detail || 'Engine phân tích ngay trên thiết bị.');
+                            if (engineLabel.includes('dự phòng') && msg.detail) {
+                                const comment = document.getElementById('live-textbook-comment');
+                                if (comment) comment.textContent = `Stockfish không khởi chạy; VtiChess đang dùng engine dự phòng. Chi tiết: ${msg.detail}`;
+                            }
                             return;
                         }
                         if (msg.type === 'ready') { engineLabel = msg.engine || engineLabel; finish(null); return; }
