@@ -100,33 +100,36 @@ function qsearch(chess, alpha, beta, ply, qply, state, knownMoves) {
     state.aborted = true;
     return evaluate(chess);
   }
-  let moves = knownMoves || chess.moves({verbose:true});
+  const moves = knownMoves || chess.moves({verbose:true});
   const terminal = terminalScore(chess, ply, moves);
   if (terminal !== null) return terminal;
   const inCheck = chess.in_check();
   if (!moves.length) return inCheck ? -MATE + ply : 0;
   const stand = evaluate(chess);
+  let bestScore = inCheck ? -INF : stand;
   if (!inCheck) {
-    if (stand >= beta) return beta;
+    if (stand >= beta) return stand; // fail-soft: preserve the actual bound score
     if (stand > alpha) alpha = stand;
     if (qply <= 0) return stand;
   } else if (qply <= -2) {
     return stand - 80;
   }
-  if (!inCheck) moves = moves.filter(m => m.captured || m.promotion);
-  moves = orderMoves(moves, null, ply);
-  if (!moves.length) return inCheck ? -MATE + ply : alpha;
-  for (const m of moves) {
+  let tacticalMoves = moves;
+  if (!inCheck) tacticalMoves = moves.filter(m => m.captured || m.promotion);
+  tacticalMoves = orderMoves(tacticalMoves, null, ply);
+  if (!tacticalMoves.length) return bestScore === -INF ? evaluate(chess) : bestScore;
+  for (const m of tacticalMoves) {
     let made;
     try { made = chess.move({from:m.from,to:m.to,promotion:m.promotion || 'q'}); } catch (_) { made = null; }
     if (!made) continue;
     const score = -qsearch(chess, -beta, -alpha, ply + 1, qply - 1, state);
     chess.undo();
-    if (state.aborted) return alpha;
-    if (score >= beta) return beta;
+    if (state.aborted) return bestScore === -INF ? alpha : bestScore;
+    if (score > bestScore) bestScore = score;
+    if (score >= beta) return score; // fail-soft cutoff
     if (score > alpha) alpha = score;
   }
-  return alpha;
+  return bestScore === -INF ? evaluate(chess) : bestScore;
 }
 function search(chess, depth, alpha, beta, ply, state) {
   state.nodes++;
