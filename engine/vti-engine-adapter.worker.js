@@ -14,6 +14,7 @@ let stockfishReady = false;
 let stockfishDisabled = false;
 let activeBackend = null;
 let activeJob = null;
+let queuedStockfishJobs = [];
 let stockfishBlobUrl = null;
 
 function sendReady(engine) {
@@ -29,7 +30,10 @@ function startFallback() {
       const msg = event.data || {};
       if (msg.type === 'ready') {
         fallbackReady = true;
-        if (stockfishDisabled) sendReady('VtiChess JS dự phòng');
+        if (stockfishDisabled) {
+          sendReady('VtiChess JS dự phòng');
+          dispatchNextStockfishJob();
+        }
         return;
       }
       if (msg.type === 'result') {
@@ -37,6 +41,7 @@ function startFallback() {
         activeJob = null;
         activeBackend = null;
         postMessage({...msg, engine:'VtiChess JS dự phòng'});
+        dispatchNextStockfishJob();
         return;
       }
       if (msg.type === 'progress') {
@@ -50,6 +55,7 @@ function startFallback() {
           activeJob = null;
           activeBackend = null;
           postMessage(msg);
+          dispatchNextStockfishJob();
         }
       }
     };
@@ -108,12 +114,35 @@ function disableStockfish(reason) {
     try { URL.revokeObjectURL(stockfishBlobUrl); } catch (_) {}
     stockfishBlobUrl = null;
   }
-  postMessage({type:'engine', engine:'VtiChess JS dự phòng', detail:reason});
-  if (activeBackend === 'stockfish' && activeJob && fallbackWorker && fallbackReady) {
-    activeBackend = 'fallback';
-    fallbackWorker.postMessage({...activeJob, type:'analyze'});
+
+  // Preserve the active request and queued requests when Stockfish fails mid-session.
+  if (activeBackend === 'stockfish' && activeJob) {
+    const interrupted = activeJob;
+    activeJob = null;
+    activeBackend = null;
+    if (!interrupted.cancelled) queuedStockfishJobs.unshift(interrupted);
+    else postMessage({type:'error', id:interrupted.id, message:'Phân tích đã bị hủy.'});
   }
+
+  postMessage({type:'engine', engine:'VtiChess JS dự phòng', detail:reason});
   if (!readySent && fallbackReady) sendReady('VtiChess JS dự phòng');
+  if (fallbackReady) dispatchNextStockfishJob();
+}
+
+function dispatchNextStockfishJob() {
+  if (activeJob || !queuedStockfishJobs.length) return;
+  const next = queuedStockfishJobs.shift();
+  if (stockfishReady && !stockfishDisabled && stockfishWorker) {
+    runStockfishJob(next);
+    return;
+  }
+  if (fallbackWorker && fallbackReady) {
+    activeBackend = 'fallback';
+    activeJob = next;
+    fallbackWorker.postMessage({...next, type:'analyze'});
+    return;
+  }
+  queuedStockfishJobs.unshift(next);
 }
 
 function handleStockfishLine(data) {
@@ -139,6 +168,7 @@ function handleStockfishLine(data) {
     return;
   }
   if (!activeJob || activeBackend !== 'stockfish') return;
+  if (activeJob.cancelled && !line.startsWith('bestmove ')) return;
   if (line.startsWith('info ')) {
     const depthMatch = line.match(/\bdepth\s+(\d+)/);
     const multiMatch = line.match(/\bmultipv\s+(\d+)/);
@@ -174,14 +204,21 @@ function handleStockfishLine(data) {
     const requested = Math.max(1, Math.min(3, Number(job.multiPV) || 1));
     const depths = Array.from(job.linesByDepth.keys()).sort((a,b)=>b-a);
     let selectedDepth = 0;
+    let matchingDepth = 0;
+    // Prefer a depth whose primary PV agrees with Stockfish's final bestmove.
+    // MultiPV can leave the newest iteration incomplete when the time limit expires.
     for (const depth of depths) {
       const bucket = job.linesByDepth.get(depth);
+      const primary = bucket.get(1);
+      const firstMove = primary && primary.pv ? primary.pv.trim().split(/\s+/)[0] : '';
+      if (firstMove !== bestmove) continue;
+      if (!matchingDepth) matchingDepth = depth;
       let complete = true;
       for (let n=1; n<=requested; n++) if (!bucket.has(n)) { complete=false; break; }
       if (complete) { selectedDepth=depth; break; }
     }
     if (!selectedDepth) {
-      selectedDepth = depths.find(depth => job.linesByDepth.get(depth).has(1)) || 0;
+      selectedDepth = matchingDepth || depths.find(depth => job.linesByDepth.get(depth).has(1)) || 0;
     }
     const selectedBucket = job.linesByDepth.get(selectedDepth);
     const lines = [];
@@ -193,13 +230,19 @@ function handleStockfishLine(data) {
     }
     if (!lines.length && bestmove !== '(none)' && bestmove !== '0000') lines.push({score:0, pv:bestmove});
     const primary = selectedBucket && selectedBucket.get(1);
+    const cancelled = !!job.cancelled;
     activeJob = null;
     activeBackend = null;
-    postMessage({
-      type:'result', id:job.id, fen:job.fen, depth:selectedDepth,
-      bestmove, score:primary ? primary.score : (lines[0] ? lines[0].score : 0),
-      lines, nodes:job.nodes || 0, engine:'Stockfish 19 Lite WASM'
-    });
+    if (cancelled) {
+      postMessage({type:'error', id:job.id, message:'Phân tích đã bị hủy.'});
+    } else {
+      postMessage({
+        type:'result', id:job.id, fen:job.fen, depth:selectedDepth,
+        bestmove, score:primary ? primary.score : (lines[0] ? lines[0].score : 0),
+        lines, nodes:job.nodes || 0, engine:'Stockfish 19 Lite WASM'
+      });
+    }
+    dispatchNextStockfishJob();
   }
 }
 
@@ -224,7 +267,9 @@ function runStockfishJob(job) {
     stockfishWorker.postMessage('setoption name Skill Level value 20');
   } else {
     stockfishWorker.postMessage('setoption name UCI_LimitStrength value false');
-    stockfishWorker.postMessage('setoption name Skill Level value ' + (botLevel === null ? 20 : skillLevelFor(botLevel)));
+    // Ratings above the calibrated UCI_Elo range should use full strength, not Skill Level 8.
+    const skill = botLevel === null || botLevel > 3190 ? 20 : skillLevelFor(botLevel);
+    stockfishWorker.postMessage('setoption name Skill Level value ' + skill);
   }
   stockfishWorker.postMessage('position fen ' + String(job.fen));
   stockfishWorker.postMessage('go movetime ' + timeMs);
@@ -236,17 +281,40 @@ startStockfish();
 onmessage = function(event) {
   const msg = event.data || {};
   if (msg.type === 'stop') {
-    if (activeBackend === 'stockfish' && stockfishWorker) stockfishWorker.postMessage('stop');
-    else if (fallbackWorker) fallbackWorker.postMessage(msg);
+    for (const queued of queuedStockfishJobs.splice(0)) {
+      postMessage({type:'error', id:queued.id, message:'Phân tích đã bị hủy.'});
+    }
+    if (activeBackend === 'stockfish' && stockfishWorker && activeJob) {
+      activeJob.cancelled = true;
+      stockfishWorker.postMessage('stop');
+    } else if (activeBackend === 'fallback' && fallbackWorker && activeJob) {
+      const cancelled = activeJob;
+      activeJob = null;
+      activeBackend = null;
+      fallbackWorker.postMessage(msg);
+      postMessage({type:'error', id:cancelled.id, message:'Phân tích đã bị hủy.'});
+    } else if (fallbackWorker) {
+      fallbackWorker.postMessage(msg);
+    }
     return;
   }
   if (msg.type !== 'analyze') return;
+
+  // UCI engines must finish the current search and emit bestmove before another
+  // position is started; otherwise a stale bestmove can be attached to a new FEN.
+  if (activeJob) {
+    queuedStockfishJobs.push(msg);
+    return;
+  }
   if (stockfishReady && !stockfishDisabled && stockfishWorker) {
     runStockfishJob(msg);
     return;
   }
-  activeBackend = 'fallback';
-  activeJob = msg;
-  if (fallbackWorker && fallbackReady) fallbackWorker.postMessage(msg);
-  else postMessage({type:'error', id:msg.id, message:'Engine chưa sẵn sàng.'});
+  if (fallbackWorker && fallbackReady) {
+    activeBackend = 'fallback';
+    activeJob = msg;
+    fallbackWorker.postMessage(msg);
+    return;
+  }
+  postMessage({type:'error', id:msg.id, message:'Engine chưa sẵn sàng.'});
 };
