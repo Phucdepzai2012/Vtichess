@@ -14,6 +14,8 @@ let readySent = false;
 let stockfishWorker = null;
 let stockfishReady = false;
 let stockfishDisabled = false;
+let stockfishThreaded = false;
+let stockfishThreadCount = 1;
 let activeBackend = null;
 let activeJob = null;
 let queuedStockfishJobs = [];
@@ -143,6 +145,12 @@ function dispatchNextStockfishJob() {
 
 function handleStockfishLine(data) {
   if (typeof data !== 'string') {
+    if (data && data.type === 'engine-mode') {
+      stockfishThreaded = !!data.threaded;
+      stockfishThreadCount = stockfishThreaded
+        ? Math.max(1, Math.min(4, Number(data.threads) || 1)) : 1;
+      return;
+    }
     if (data && data.error) {
       const detail = data.error.message || data.error.stack || String(data.error);
       disableStockfish('Stockfish trả về lỗi: ' + detail);
@@ -153,7 +161,7 @@ function handleStockfishLine(data) {
   if (!line) return;
   if (line === 'uciok') {
     if (!stockfishWorker || stockfishDisabled) return;
-    stockfishWorker.postMessage('setoption name Threads value 1');
+    stockfishWorker.postMessage('setoption name Threads value ' + stockfishThreadCount);
     stockfishWorker.postMessage('setoption name Hash value 32');
     stockfishWorker.postMessage('setoption name MultiPV value 1');
     stockfishWorker.postMessage('isready');
@@ -162,8 +170,14 @@ function handleStockfishLine(data) {
   if (line === 'readyok') {
     if (stockfishDisabled) return;
     stockfishReady = true;
-    postMessage({type:'engine', engine:'Stockfish 18.0.8 Lite Single WASM', detail:'Stockfish chạy trong trình duyệt; không gửi thế cờ lên API phân tích.'});
-    sendReady('Stockfish 18.0.8 Lite Single WASM');
+    const engineName = stockfishThreaded
+      ? 'Stockfish 18.0.8 Lite WASM · ' + stockfishThreadCount + ' CPU threads'
+      : 'Stockfish 18.0.8 Lite Single WASM';
+    const engineDetail = stockfishThreaded
+      ? 'Stockfish dùng WebAssembly nhiều luồng trên CPU thiết bị.'
+      : 'Stockfish dùng một luồng CPU; phân tích toàn ván có thể chia vị trí cho nhiều worker.';
+    postMessage({type:'engine', engine:engineName, detail:engineDetail});
+    sendReady(engineName);
     return;
   }
   if (!activeJob || activeBackend !== 'stockfish') return;
