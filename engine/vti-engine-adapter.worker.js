@@ -144,7 +144,7 @@ function dispatchNextStockfishJob() {
 function handleStockfishLine(data) {
   if (typeof data !== 'string') {
     if (data && data.error) {
-      const detail = data.error.stack || data.error.message || String(data.error);
+      const detail = data.error.message || data.error.stack || String(data.error);
       disableStockfish('Stockfish trả về lỗi: ' + detail);
     }
     return;
