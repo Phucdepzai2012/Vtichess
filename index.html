@@ -704,6 +704,10 @@
         // engines max so analysis does not consume all memory or make the UI unresponsive.
         function getDesiredEngineWorkerCount() {
             const cores = Math.max(1, Number(navigator.hardwareConcurrency) || 2);
+            // If the page can use SharedArrayBuffer, one multithreaded Stockfish instance
+            // is better than several competing instances. GitHub Pages normally uses the
+            // CPU worker pool below because it does not provide custom COOP/COEP headers.
+            if (window.crossOriginIsolated === true && typeof SharedArrayBuffer === 'function') return 1;
             const coarsePointer = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
             if (cores <= 2) return 1;
             if (cores <= 4) return 2;
@@ -1833,9 +1837,9 @@
         window.onload = function() {
             renderPlayBoard();
             updateBotElo(1500);
-            setEngineStatus('Stockfish 18.0.8 Lite Single · đang khởi tạo', 'loading', 'Đang nạp Stockfish 18.0.8 Lite Single. Nếu không tải được, VtiChess JS dự phòng vẫn hoạt động.');
+            setEngineStatus('Stockfish 18.0.8 · đang khởi tạo', 'loading', 'Đang nạp Stockfish. Chế độ nhiều luồng sẽ dùng khi trình duyệt hỗ trợ; nếu không, phân tích toàn ván có thể chia cho các worker CPU.');
             document.getElementById('live-textbook-comment').textContent =
-                'Stockfish 18.0.8 chạy trong trình duyệt; VtiChess JS sẽ tự dùng nếu Stockfish không tải được.';
+                'VtiChess phân tích cục bộ trên CPU. GPU chưa được dùng bởi Stockfish; có thể dùng nhiều worker CPU để phân tích các vị trí độc lập.';
             ensureLocalEngine().catch(error => {
                 document.getElementById('live-textbook-comment').textContent =
                     'Engine khởi tạo lỗi: ' + (error.message || error);
