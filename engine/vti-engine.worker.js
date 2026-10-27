@@ -247,7 +247,7 @@ function analyzeJob(job) {
   const chess = new Chess(job.fen);
   const legal = chess.moves({verbose:true});
   if (!legal.length) {
-    postMessage({type:'result',id:job.id,fen:job.fen,depth:0,bestmove:'(none)',score:terminalScore(chess,0)||0,lines:[],nodes:0});
+    postMessage({type:'result',id:job.id,fen:job.fen,depth:0,bestmove:'(none)',score:terminalScore(chess,0,legal)||0,lines:[],nodes:0});
     return;
   }
   const botLevel = job.botLevel !== null && job.botLevel !== undefined && Number.isFinite(Number(job.botLevel)) ? Number(job.botLevel) : null;
