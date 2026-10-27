@@ -140,11 +140,11 @@ function handleStockfishLine(data) {
   }
   if (!activeJob || activeBackend !== 'stockfish') return;
   if (line.startsWith('info ')) {
-    const depthMatch = line.match(/\\bdepth\\s+(\\d+)/);
-    const multiMatch = line.match(/\\bmultipv\\s+(\\d+)/);
-    const nodesMatch = line.match(/\\bnodes\\s+(\\d+)/);
-    const cpMatch = line.match(/\\bscore\\s+cp\\s+(-?\\d+)/);
-    const mateMatch = line.match(/\\bscore\\s+mate\\s+(-?\\d+)/);
+    const depthMatch = line.match(/\bdepth\s+(\d+)/);
+    const multiMatch = line.match(/\bmultipv\s+(\d+)/);
+    const nodesMatch = line.match(/\bnodes\s+(\d+)/);
+    const cpMatch = line.match(/\bscore\s+cp\s+(-?\d+)/);
+    const mateMatch = line.match(/\bscore\s+mate\s+(-?\d+)/);
     const pvMarker = line.indexOf(' pv ');
     if (nodesMatch) activeJob.nodes = Math.max(activeJob.nodes || 0, Number(nodesMatch[1]) || 0);
     if (!depthMatch || pvMarker < 0 || (!cpMatch && !mateMatch)) return;
@@ -168,7 +168,7 @@ function handleStockfishLine(data) {
     return;
   }
   if (line.startsWith('bestmove ')) {
-    const tokens = line.split(/\\s+/);
+    const tokens = line.split(/\s+/);
     const bestmove = tokens[1] || '(none)';
     const job = activeJob;
     const requested = Math.max(1, Math.min(3, Number(job.multiPV) || 1));
