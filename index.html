@@ -1,1850 +1,503 @@
-<!DOCTYPE html>
-<html lang="vi" class="dark">
+<!doctype html>
+<html lang="vi">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Chess Lab Pro static GitHub Pages chess trainer with VtiChess analysis.">
-    <title>VtiChess - Local JavaScript Chess Engine</title>
-    <!-- Tailwind CSS CDN -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        tailwind.config = {
-            darkMode: 'class',
-            theme: {
-                extend: {
-                    colors: {
-                        chess: {
-                            bg: '#161512',
-                            card: '#262421',
-                            panel: '#21201d',
-                            hover: '#312e2b',
-                            active: '#3c3935',
-                            border: '#383531',
-                            green: '#81b64c',
-                            greenHover: '#a3d168',
-                            greenDark: '#457524',
-                            textLight: '#ffffff',
-                            textMuted: '#989795',
-                            boardLight: '#ebecd0',
-                            boardDark: '#739552',
-                        }
-                    },
-                    fontFamily: {
-                        sans: ['Nunito', 'Segoe UI', 'system-ui', 'sans-serif'],
-                    }
-                }
-            }
-        }
-    </script>
-    <!-- Google Font: Nunito (Official Chess.com typography style) -->
-    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
-    <!-- FontAwesome Icons -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-    <!-- chess.js for complete rule validation -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
-
-    <style>
-        body {
-            font-family: 'Nunito', sans-serif;
-            background-color: #161512;
-            color: #bab4ab;
-            user-select: none;
-            overflow-x: hidden;
-        }
-
-        /* Custom Scrollbar */
-        ::-webkit-scrollbar { width: 6px; height: 6px; }
-        ::-webkit-scrollbar-track { background: #161512; }
-        ::-webkit-scrollbar-thumb { background: #383531; border-radius: 4px; }
-        ::-webkit-scrollbar-thumb:hover { background: #524f4a; }
-
-        /* Board Themes - Clean Tiles without glow */
-        .theme-green .sq-light { background-color: #ebecd0; color: #739552; }
-        .theme-green .sq-dark { background-color: #739552; color: #ebecd0; }
-
-        .theme-wood .sq-light { background-color: #f0d9b5; color: #b58863; }
-        .theme-wood .sq-dark { background-color: #b58863; color: #f0d9b5; }
-
-        .theme-glass .sq-light { background-color: #e2e8f0; color: #64748b; }
-        .theme-glass .sq-dark { background-color: #475569; color: #cbd5e1; }
-
-        .theme-dark .sq-light { background-color: #3b3b3b; color: #222222; }
-        .theme-dark .sq-dark { background-color: #222222; color: #3b3b3b; }
-
-        /* Authentic Chess.com Highlights */
-        .hl-selected { background-color: rgba(255, 255, 51, 0.5) !important; }
-        .hl-lastmove { background-color: rgba(255, 255, 51, 0.4) !important; }
-        
-        /* Authentic Chess.com Move Hints: Soft translucent dot & capture ring */
-        .hl-dot::after {
-            content: '';
-            position: absolute;
-            width: 26%;
-            height: 26%;
-            background-color: rgba(0, 0, 0, 0.14);
-            border-radius: 50%;
-            pointer-events: none;
-        }
-        .hl-capture::after {
-            content: '';
-            position: absolute;
-            width: 100%;
-            height: 100%;
-            border: 6px solid rgba(0, 0, 0, 0.15);
-            border-radius: 50%;
-            box-sizing: border-box;
-            pointer-events: none;
-        }
-
-        /* Chess Piece SVGs - Clean, no filters, glow or drop shadows */
-        .piece-img {
-            width: 100%;
-            height: 100%;
-            background-size: contain;
-            background-repeat: no-repeat;
-            background-position: center;
-            cursor: grab;
-            transition: transform 0.05s ease-in-out;
-            filter: none !important; /* Strictly no glowing aura or drop-shadow */
-        }
-        .piece-img:active { cursor: grabbing; transform: scale(1.05); }
-
-        /* Move Classification Badge Overlay on Squares */
-        .badge-brilliant { background-color: #1baca6; color: #fff; }
-        .badge-great { background-color: #5c8bb0; color: #fff; }
-        .badge-best { background-color: #96bc4b; color: #fff; }
-        .badge-good { background-color: #96bc4b; color: #fff; }
-        .badge-inaccuracy { background-color: #f3c23e; color: #000; }
-        .badge-mistake { background-color: #e58f2a; color: #fff; }
-        .badge-blunder { background-color: #fa412d; color: #fff; }
-        .badge-miss { background-color: #b33928; color: #fff; }
-
-        .badge-icon-overlay {
-            position: absolute;
-            top: -4px;
-            right: -4px;
-            width: 22px;
-            height: 22px;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 11px;
-            font-weight: 900;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.4);
-            z-index: 20;
-            pointer-events: none;
-        }
-
-        .engine-status { cursor:pointer; user-select:none; display:inline-flex; align-items:center; gap:7px; max-width:230px; padding:5px 9px; border:1px solid #383531; border-radius:999px; background:#21201d; color:#bab4ab; font-size:10px; font-weight:800; white-space:nowrap; }
-        .engine-status-dot { width:7px; height:7px; display:inline-block; border-radius:50%; background:#e8b94f; flex:0 0 auto; }
-        .engine-status.ready .engine-status-dot { background:#81b64c; box-shadow:0 0 0 3px rgba(129,182,76,.12); }
-        .engine-status.error .engine-status-dot { background:#fa412d; }
-        .engine-lines { display:flex; flex-direction:column; gap:6px; margin-top:9px; }
-        .engine-line-row { display:grid; grid-template-columns:22px 48px 1fr; gap:7px; align-items:start; padding:7px 8px; border-radius:8px; background:#1b1a18; border:1px solid #383531; font-size:11px; }
-        .engine-line-row .line-rank { color:#81b64c; font-weight:900; }
-        .engine-line-row .line-score { color:#f0d9b5; font-weight:900; white-space:nowrap; }
-        .engine-line-row .line-pv { color:#d6d3d1; line-height:1.45; overflow-wrap:anywhere; }
-        .eval-graph-wrap { background:#21201d; border:1px solid #383531; border-radius:12px; padding:10px; }
-        #review-eval-graph { width:100%; height:132px; display:block; }
-        .review-stat { display:inline-flex; align-items:center; gap:4px; padding:4px 7px; border-radius:6px; background:#1b1a18; font-size:10px; font-weight:900; }
-        .analysis-square-selected { box-shadow: inset 0 0 0 4px rgba(255,255,51,.75); }
-        .analysis-square-legal::after { content:''; position:absolute; width:25%; height:25%; border-radius:50%; background:rgba(0,0,0,.20); pointer-events:none; }
-        .analysis-square-capture::after { content:''; position:absolute; inset:0; border:5px solid rgba(0,0,0,.20); border-radius:50%; box-sizing:border-box; pointer-events:none; }
-        .piece-img { object-fit:contain; display:block; max-width:100%; max-height:100%; }
-
-        /* Stable chessboard geometry: exactly 8 equal columns AND rows.
-           CSS aspect-ratio stops flex/grid parents from stretching the board. */
-        .board-frame { flex: 0 0 auto; min-width: 0; width: max-content; }
-        .chessboard-grid {
-            display: grid;
-            grid-template-columns: repeat(8, minmax(0, 1fr));
-            grid-template-rows: repeat(8, minmax(0, 1fr));
-            flex: 0 0 auto;
-            box-sizing: border-box;
-            aspect-ratio: 1 / 1;
-            height: auto;
-            max-width: 100%;
-            min-width: 0;
-            min-height: 0;
-            overflow: hidden;
-        }
-        .chessboard-play { width: min(560px, calc(100vw - 72px)); }
-        .chessboard-review { width: min(380px, calc(100vw - 72px)); }
-        .chessboard-analysis { width: min(540px, calc(100vw - 80px)); }
-        .chessboard-grid > div { min-width: 0; min-height: 0; width: 100%; height: 100%; aspect-ratio: 1 / 1; overflow: hidden; }
-        /* Coordinates on every board: rank labels 1-8, file labels a-h. */
-        .chessboard-grid > div[data-rank-label]::before,
-        .chessboard-grid > div[data-file-label]::after {
-            position: absolute; z-index: 5; pointer-events: none;
-            font-family: 'Nunito', sans-serif; font-size: clamp(8px, 1.2vw, 12px);
-            line-height: 1; font-weight: 900; opacity: .94;
-            text-shadow: 0 1px 1px rgba(0,0,0,.12);
-        }
-        .chessboard-grid > div[data-rank-label]::before { content: attr(data-rank-label); top: 3px; left: 4px; }
-        .chessboard-grid > div[data-file-label]::after { content: attr(data-file-label); right: 4px; bottom: 3px; }
-        .eval-bar-stack { width: 16px; flex: 0 0 16px; align-self: stretch; min-height: 0; }
-        .eval-bar-stack > div { flex-shrink: 0; }
-        #chessboard, #review-chessboard, #analysis-chessboard { touch-action: manipulation; }
-        @media (max-width: 639px) {
-            .chessboard-play { width: min(560px, calc(100vw - 72px)); }
-            .chessboard-analysis { width: min(540px, calc(100vw - 80px)); }
-            .eval-bar-stack { width: 12px; flex-basis: 12px; }
-        }
-        @media (max-width: 640px) { .engine-status { max-width:116px; overflow:hidden; } #engine-status-text { overflow:hidden; text-overflow:ellipsis; } }
-
-        /* Chess.com-inspired button treatment */
-        .btn-chess-green {
-            background-color: #81b64c;
-            box-shadow: 0 4px 0 #457524;
-            transition: all 0.1s ease;
-        }
-        .btn-chess-green:hover {
-            background-color: #a3d168;
-        }
-        .btn-chess-green:active {
-            transform: translateY(2px);
-            box-shadow: 0 2px 0 #457524;
-        }
-    </style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#101512">
+<meta name="description" content="Cờ biến thể 3 người VtiChess. Tạo phòng P2P, máy người tạo phòng làm máy chủ ván cờ.">
+<title>VtiChess · Three Kingdoms</title>
+<style>
+:root{color-scheme:dark;--bg:#101512;--panel:#191f1b;--panel2:#202923;--edge:#344138;--muted:#a6b4a9;--text:#f0f5f1;--green:#9bc653;--green2:#d5f29b;--red:#f07878;--blue:#77c8f5;--gold:#f4c86a;--tileA:#d9e2d4;--tileB:#759174}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at top,#24372b 0,#101512 52rem);color:var(--text);font:15px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif;min-height:100vh}button,input{font:inherit}button{cursor:pointer}button:disabled{opacity:.45;cursor:not-allowed}.shell{width:min(1500px,100%);margin:auto;padding:20px clamp(12px,2vw,28px) 38px}.topbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:20px}.brand{display:flex;gap:12px;align-items:center}.brand-mark{width:46px;height:46px;display:grid;place-items:center;background:linear-gradient(145deg,#c0e77c,#6c963b);color:#152015;border-radius:15px;font-size:29px;font-weight:900;box-shadow:0 8px 25px #0004}.brand h1{margin:0;font-size:clamp(20px,3vw,30px);letter-spacing:-.04em}.brand p{margin:2px 0 0;color:var(--muted);font-size:12px}.mode-pill{border:1px solid #536647;border-radius:999px;color:var(--green2);background:#283625;padding:7px 11px;font-size:12px;font-weight:800}.intro{display:flex;justify-content:space-between;align-items:end;gap:20px;margin-bottom:18px}.intro h2{font-size:clamp(25px,4vw,40px);line-height:1.07;letter-spacing:-.045em;margin:0 0 8px}.intro p{color:var(--muted);margin:0;max-width:760px}.architecture{font-size:12px;color:#d3e2d5;background:#1a251d;border:1px solid var(--edge);padding:10px 13px;border-radius:12px;max-width:325px}.layout{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(320px,.75fr);gap:18px;align-items:start}.panel{background:linear-gradient(180deg,#1b231e,#171c18);border:1px solid var(--edge);border-radius:19px;box-shadow:0 16px 46px #0002;overflow:hidden}.panel-head{padding:15px 17px;border-bottom:1px solid #303b33;display:flex;justify-content:space-between;align-items:center;gap:12px}.panel-head h3{font-size:15px;margin:0}.eyebrow{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:900}.board-wrap{padding:clamp(8px,1.6vw,18px)}.board{width:100%;max-width:760px;margin:auto;display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:2px;background:#3a493d;border:2px solid #3a493d;border-radius:7px;overflow:hidden;user-select:none;touch-action:manipulation}.sq,.offboard{aspect-ratio:1;min-width:0;position:relative}.sq{border:0;margin:0;display:grid;place-items:center;padding:0;color:#111}.sq.light{background:var(--tileA)}.sq.dark{background:var(--tileB)}.sq.selected{box-shadow:inset 0 0 0 4px #f5d55f;z-index:1}.sq.last{box-shadow:inset 0 0 0 4px #f4d66b88}.sq.target:after{content:"";position:absolute;width:25%;height:25%;border-radius:50%;background:#16251d77}.sq.capture:after{content:"";position:absolute;inset:3px;border:3px solid #253329a8;border-radius:50%;background:transparent}.piece{font-family:"DejaVu Sans","Segoe UI Symbol",serif;font-size:clamp(15px,3.2vw,35px);line-height:1;position:relative;z-index:1;filter:drop-shadow(0 1px 1px #0005)}.piece.north{color:#fbfff4;text-shadow:0 1px 2px #263225,1px 0 1px #263225,-1px 0 1px #263225}.piece.east{color:#39b9f2;text-shadow:0 1px 2px #122d36,1px 0 1px #123744,-1px 0 1px #123744}.piece.west{color:#f07676;text-shadow:0 1px 2px #3f1515,1px 0 1px #421818,-1px 0 1px #421818}.coord{position:absolute;font-size:clamp(6px,.8vw,9px);font-weight:900;line-height:1;color:#263b2b;opacity:.8;left:3px;top:2px;pointer-events:none}.sq.dark .coord{color:#eef7ea}.offboard{background:#111813}.board-footer{display:flex;justify-content:space-between;gap:10px;color:var(--muted);font-size:12px;padding:0 5px 7px}.turn-strip{display:flex;gap:9px;align-items:center;flex-wrap:wrap;padding:12px 16px;border-top:1px solid #303b33}.turn-dot{width:9px;height:9px;border-radius:50%;background:var(--green);box-shadow:0 0 0 4px #9bc6531d}.status-text{font-weight:800}.small-muted{font-size:12px;color:var(--muted)}.side-stack{display:grid;gap:16px}.section-body{padding:16px}.row{display:flex;gap:8px}.row>*{min-width:0}.row input{flex:1}.field-label{display:block;font-size:12px;color:#c1cec4;font-weight:800;margin-bottom:6px}.input{width:100%;padding:11px 12px;border:1px solid #3d4c40;border-radius:10px;background:#0f1511;color:var(--text);outline:none}.input:focus{border-color:var(--green);box-shadow:0 0 0 3px #9bc6531c}.btn{border:1px solid #516343;border-radius:10px;background:#2d4027;color:#ecffd6;padding:10px 13px;font-weight:850;transition:transform .12s,background .12s;white-space:nowrap}.btn:hover{background:#3b542f;transform:translateY(-1px)}.btn.primary{background:var(--green);color:#172014;border-color:var(--green)}.btn.secondary{background:#252f28;border-color:#435146;color:#e1ebe3}.btn.danger{color:#ffd7d7;background:#432727;border-color:#754141}.btn.full{width:100%}.btnrow{display:flex;gap:8px;flex-wrap:wrap}.help{font-size:12px;color:var(--muted);margin:9px 0 0}.status-box{border:1px solid #37453a;background:#131a15;border-radius:11px;padding:11px 12px;font-size:12px;color:#c6d3c8;overflow-wrap:anywhere}.status-box strong{display:block;color:var(--green2);font-size:13px;margin-bottom:3px}.status-box.error strong{color:var(--red)}.roomline{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:12px}.room-code{font-weight:900;letter-spacing:.08em;color:var(--gold);overflow-wrap:anywhere}.players{display:grid;gap:8px}.seat{display:flex;gap:10px;align-items:center;background:#161e18;border:1px solid #303e33;border-radius:12px;padding:10px}.seat.current{border-color:#8cb658;box-shadow:inset 0 0 0 1px #8cb65844}.seat-color{width:35px;height:35px;border-radius:9px;display:grid;place-items:center;font-size:21px;font-weight:900;background:#2b352c}.seat-color.north{color:#fff;background:#465342}.seat-color.east{color:var(--blue);background:#1d3843}.seat-color.west{color:var(--red);background:#412728}.seat-info{min-width:0;flex:1}.seat-name{font-weight:850;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.seat-meta{font-size:11px;color:var(--muted)}.seat-state{font-size:10px;font-weight:900;border-radius:999px;padding:4px 7px;background:#2b342c;color:#aebbb1}.seat-state.online{color:#d4f5a5;background:#304326}.seat-state.out{color:#ffb7b7;background:#482c2c}.log{display:grid;gap:6px;max-height:170px;overflow:auto}.log-item{font-size:12px;color:#c3d0c5;border-left:2px solid #536c42;padding:4px 0 4px 9px}.chat{display:grid;gap:9px}.chat-list{display:grid;gap:7px;max-height:170px;overflow:auto}.chat-message{font-size:12px;color:#d4ded6;overflow-wrap:anywhere}.chat-message strong{color:var(--green2)}.network-note{font-size:11px;color:var(--muted);margin-top:8px}.footer{margin-top:18px;padding:13px 15px;border:1px solid #2b382e;border-radius:12px;color:#aab8ad;font-size:12px;line-height:1.55}.hidden{display:none!important}.tag{display:inline-flex;padding:4px 7px;border-radius:6px;background:#273328;color:#c9dfba;font-size:10px;font-weight:900;letter-spacing:.04em}.win{padding:12px;border:1px solid #5b7549;background:#263a22;border-radius:12px;color:#e5ffc8;font-weight:800;margin-bottom:12px}.rule-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:9px 0}.rule-card{background:#131a15;border:1px solid #303e33;border-radius:8px;padding:8px 7px;text-align:center;font-size:11px;color:var(--muted)}.rule-card b{display:block;font-size:12px;margin-bottom:2px}.rule-card.north b{color:#f6fff0}.rule-card.east b{color:var(--blue)}.rule-card.west b{color:var(--red)}@media(max-width:980px){.layout{grid-template-columns:1fr}.side-stack{grid-template-columns:repeat(2,minmax(0,1fr))}.side-stack .panel:first-child{grid-row:span 2}.intro{align-items:start;flex-direction:column}.architecture{max-width:none}}@media(max-width:600px){.shell{padding:13px 9px 26px}.topbar{margin-bottom:14px}.brand-mark{width:40px;height:40px;border-radius:12px}.mode-pill{font-size:10px}.side-stack{grid-template-columns:1fr}.side-stack .panel:first-child{grid-row:auto}.layout{gap:12px}.panel{border-radius:14px}.panel-head{padding:12px}.section-body{padding:12px}.btn{padding:10px 11px;font-size:13px}.sq.selected{box-shadow:inset 0 0 0 2px #f5d55f}.sq.capture:after{border-width:2px;inset:2px}.coord{left:2px;top:2px}.board{gap:1px;border-width:1px}.piece{font-size:clamp(12px,5vw,26px)}.intro h2{font-size:29px}.board-footer{font-size:10px}}
+</style>
 </head>
-<body class="min-h-screen flex flex-col lg:flex-row bg-chess-bg text-chess-textMuted">
+<body>
+<div class="shell">
+  <header class="topbar">
+    <div class="brand"><div class="brand-mark">♟</div><div><h1>VtiChess <span style="color:var(--green)">Three Kingdoms</span></h1><p>Cờ biến thể 3 người · Máy người tạo phòng làm server ván cờ</p></div></div>
+    <div class="mode-pill">WEBRTC · P2P</div>
+  </header>
+  <div class="intro">
+    <div><h2>Ba vương quốc.<br>Chỉ một người chiến thắng.</h2><p>Chơi cờ 3 người qua Internet. Người tạo phòng giữ trạng thái ván, kiểm tra nước đi và phát đồng bộ cho hai người còn lại.</p></div>
+    <div class="architecture"><strong style="color:var(--green2)">Không cần máy chủ game riêng.</strong><br>PeerJS Cloud chỉ làm tín hiệu kết nối ban đầu; nước đi truyền trực tiếp qua WebRTC khi mạng cho phép.</div>
+  </div>
 
-    <!-- SIDEBAR NAVIGATION -->
-    <aside class="w-full lg:w-64 bg-chess-card border-r border-chess-border flex lg:flex-col justify-between p-3 lg:p-4 z-30 shrink-0 shadow-xl">
-        <div class="flex lg:flex-col items-center lg:items-stretch gap-4 w-full">
-            <!-- Chess.com Logo -->
-            <div class="flex items-center gap-3 px-2 py-1 cursor-pointer" onclick="switchTab('play')">
-                <div class="w-10 h-10 rounded-lg bg-chess-green flex items-center justify-center text-white text-2xl shadow-lg font-black">
-                    <i class="fa-solid fa-chess-knight"></i>
-                </div>
-                <div class="hidden lg:block">
-                    <h1 class="font-extrabold text-chess-textLight text-xl leading-none tracking-wide">Chess Lab</h1>
-                    <span class="text-xs text-chess-green font-bold tracking-wider">STOCKFISH ANALYZER</span>
-                </div>
-            </div>
+  <div class="layout">
+    <section class="panel">
+      <div class="panel-head"><div><div class="eyebrow">Bàn cờ 3 phía</div><h3>Three Kingdoms · 12 × 12</h3></div><span id="turn-pill" class="tag">ĐANG CHỜ PHÒNG</span></div>
+      <div id="win-box" class="win hidden" style="margin:12px 14px 0"></div>
+      <div class="board-wrap"><div id="board" class="board" aria-label="Bàn cờ 3 người"></div></div>
+      <div class="board-footer"><span>Trên: Trắng · Phải: Xanh · Trái: Đỏ</span><span id="move-count">0 nước</span></div>
+      <div class="turn-strip"><span class="turn-dot"></span><span id="game-status" class="status-text">Tạo phòng để bắt đầu.</span></div>
+    </section>
 
-            <!-- Navigation Tabs -->
-            <nav class="flex lg:flex-col gap-1.5 w-full justify-around lg:justify-start">
-                <button onclick="switchTab('play')" id="nav-play" class="nav-btn flex items-center gap-3 px-3 py-3 rounded-xl text-chess-textLight bg-chess-hover font-bold transition text-left">
-                    <i class="fa-solid fa-robot text-chess-green w-5 text-center text-lg"></i>
-                    <span class="hidden lg:inline text-sm">Đấu với Bot (1-10000)</span>
-                </button>
-                <button onclick="switchTab('review')" id="nav-review" class="nav-btn flex items-center gap-3 px-3 py-3 rounded-xl text-chess-textMuted hover:bg-chess-hover hover:text-chess-textLight font-bold transition text-left">
-                    <i class="fa-solid fa-magnifying-glass-chart text-blue-400 w-5 text-center text-lg"></i>
-                    <span class="hidden lg:inline text-sm">Tra cứu Chess.com</span>
-                </button>
-                <button onclick="switchTab('analysis')" id="nav-analysis" class="nav-btn flex items-center gap-3 px-3 py-3 rounded-xl text-chess-textMuted hover:bg-chess-hover hover:text-chess-textLight font-bold transition text-left">
-                    <i class="fa-solid fa-microchip text-amber-400 w-5 text-center text-lg"></i>
-                    <span class="hidden lg:inline text-sm">Bàn phân tích VtiChess</span>
-                </button>
-                <button onclick="switchTab('settings')" id="nav-settings" class="nav-btn flex items-center gap-3 px-3 py-3 rounded-xl text-chess-textMuted hover:bg-chess-hover hover:text-chess-textLight font-bold transition text-left">
-                    <i class="fa-solid fa-sliders text-purple-400 w-5 text-center text-lg"></i>
-                    <span class="hidden lg:inline text-sm">Cài đặt & Giao diện</span>
-                </button>
-            </nav>
+    <aside class="side-stack">
+      <section class="panel">
+        <div class="panel-head"><div><div class="eyebrow">Kết nối Internet</div><h3>Phòng chơi P2P</h3></div><span class="tag">3 NGƯỜI</span></div>
+        <div class="section-body">
+          <label class="field-label" for="player-name">Tên hiển thị</label><input id="player-name" class="input" maxlength="20" placeholder="Tên của bạn" value="Người chơi">
+          <div class="btnrow" style="margin-top:10px"><button id="create-room" class="btn primary" style="flex:1">＋ Tạo phòng (Host)</button><button id="new-game" class="btn secondary hidden">Ván mới</button></div>
+          <div style="height:1px;background:#303b33;margin:15px 0"></div>
+          <label class="field-label" for="room-code-input">Mã phòng / Peer ID của host</label>
+          <div class="row"><input id="room-code-input" class="input" placeholder="Dán mã phòng" autocomplete="off"><button id="join-room" class="btn">Tham gia</button></div>
+          <div class="roomline"><div><div class="field-label" style="margin:0 0 3px">Mã phòng của bạn</div><div id="room-code" class="room-code">Chưa tạo</div></div><button id="copy-invite" class="btn secondary" disabled>Copy link mời</button></div>
+          <div id="network-status" class="status-box" style="margin-top:12px"><strong>Chưa kết nối</strong>Tạo phòng hoặc nhập mã của host để tham gia.</div>
+          <p class="help">Cần Internet và trình duyệt hỗ trợ WebRTC. Nếu mạng chặn kết nối ngang hàng hoặc cần TURN relay, phòng có thể không kết nối được.</p>
         </div>
+      </section>
 
-        <!-- User Profile Card -->
-        <div class="hidden lg:flex items-center gap-3 p-3 bg-chess-panel rounded-xl border border-chess-border mt-auto">
-            <div class="w-10 h-10 rounded-lg bg-chess-green flex items-center justify-center text-white font-extrabold text-lg shadow">
-                <i class="fa-solid fa-user-astronaut"></i>
-            </div>
-            <div class="overflow-hidden">
-                <p class="text-sm font-extrabold text-chess-textLight truncate" id="user-display-name">Khách Hàng Đầu</p>
-                <p class="text-xs text-chess-green font-bold">Elo: 1500 • Diamond Pro</p>
-            </div>
+      <section class="panel">
+        <div class="panel-head"><div><div class="eyebrow">Ba chỗ ngồi</div><h3>Người chơi</h3></div><span id="online-count" class="tag">0 / 3</span></div>
+        <div class="section-body">
+          <div class="players" id="players"></div>
+          <div class="rule-grid"><div class="rule-card north"><b>Trắng</b>Đi xuống</div><div class="rule-card east"><b>Xanh</b>Đi sang trái</div><div class="rule-card west"><b>Đỏ</b>Đi sang phải</div></div>
+          <p class="help">Luân phiên Trắng → Xanh → Đỏ. Chiếu bí sẽ loại người chơi khỏi ván; khi chỉ còn một vương quốc, ván kết thúc.</p>
         </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head"><div><div class="eyebrow">Ván đấu</div><h3>Nhật ký nước đi</h3></div><span class="tag">HOST AUTHORITATIVE</span></div>
+        <div class="section-body"><div id="move-log" class="log"><div class="small-muted">Các nước đi sẽ xuất hiện ở đây.</div></div></div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head"><div><div class="eyebrow">Trao đổi</div><h3>Chat phòng</h3></div></div>
+        <div class="section-body">
+          <div id="chat-list" class="chat-list"><div class="small-muted">Khi ba người vào phòng, có thể chat tại đây.</div></div>
+          <form id="chat-form" class="row" style="margin-top:10px"><input id="chat-input" class="input" maxlength="180" placeholder="Nhắn trong phòng…" autocomplete="off"><button class="btn" type="submit">Gửi</button></form>
+        </div>
+      </section>
     </aside>
-
-    <!-- MAIN APP CONTENT AREA -->
-    <main class="flex-1 flex flex-col h-screen overflow-hidden">
-        
-        <!-- TOP NAVBAR HEADER -->
-        <header class="h-14 border-b border-chess-border bg-chess-card px-4 lg:px-6 flex items-center justify-between shrink-0">
-            <div class="flex items-center gap-3 min-w-0">
-                <span id="current-mode-title" class="text-base font-extrabold text-chess-textLight flex items-center gap-2">
-                    <i class="fa-solid fa-robot text-chess-green"></i> Đấu Cờ Với VtiChess Bot
-                </span>
-                <span id="engine-status" class="engine-status" role="button" tabindex="0" onclick="retryVtiChess()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();retryVtiChess();}" title="Nhấn để kiểm tra hoặc khởi tạo lại engine cục bộ"><span class="engine-status-dot"></span><span id="engine-status-text">VtiChess Engine cục bộ · chưa kiểm tra</span></span>
-            </div>
-            <div class="flex items-center gap-2">
-                <button onclick="toggleAudio()" id="sound-btn" class="px-3 py-1.5 rounded-lg bg-chess-panel hover:bg-chess-hover text-chess-textLight text-xs font-bold transition flex items-center gap-2 border border-chess-border">
-                    <i class="fa-solid fa-volume-high text-chess-green"></i> <span class="hidden sm:inline">Âm thanh: Bật</span>
-                </button>
-                <button onclick="startNewGame()" class="px-4 py-1.5 rounded-lg btn-chess-green text-white font-black text-xs transition flex items-center gap-1.5">
-                    <i class="fa-solid fa-plus"></i> Ván Mới
-                </button>
-            </div>
-        </header>
-
-        <!-- VIEWS WRAPPER -->
-        <div class="flex-1 overflow-y-auto relative p-2 lg:p-6">
-
-            <!-- ================= TAB 1: PLAY VS BOT ================= -->
-            <section id="view-play" class="view-section max-w-7xl mx-auto flex flex-col 2xl:flex-row gap-6 items-center 2xl:items-start justify-center">
-                <!-- Left: Evaluation Bar & Chessboard -->
-                <div class="flex gap-2.5 items-stretch justify-center board-play-layout">
-                    <!-- Real-time Evaluation Bar -->
-                    <div class="eval-bar-stack bg-zinc-900 rounded-md overflow-hidden flex flex-col border border-chess-border relative shadow-inner">
-                        <div id="eval-bar-black" class="bg-zinc-800 w-full transition-all duration-300" style="height: 50%;"></div>
-                        <div id="eval-bar-white" class="bg-zinc-100 w-full transition-all duration-300" style="height: 50%;"></div>
-                        <span id="eval-score-text" class="absolute inset-x-0 top-1/2 -translate-y-1/2 text-[10px] font-black text-center text-black bg-white/90 py-0.5 shadow">0.0</span>
-                    </div>
-
-                    <!-- Main Chessboard Component -->
-                    <div class="board-frame relative shadow-2xl rounded-lg overflow-hidden border-4 border-chess-card">
-                        <div id="chessboard" class="chessboard-grid chessboard-play select-none theme-green"></div>
-                        
-                        <!-- Promotion Modal -->
-                        <div id="promotion-modal" class="hidden absolute inset-0 bg-black/75 backdrop-blur-sm flex items-center justify-center z-50">
-                            <div class="bg-chess-card p-4 rounded-2xl border border-chess-border flex gap-3 shadow-2xl">
-                                <button onclick="selectPromotion('q')" class="w-16 h-16 rounded-xl bg-chess-panel hover:bg-chess-hover flex items-center justify-center text-3xl text-chess-textLight transition border border-chess-border"><i class="fa-solid fa-chess-queen"></i></button>
-                                <button onclick="selectPromotion('r')" class="w-16 h-16 rounded-xl bg-chess-panel hover:bg-chess-hover flex items-center justify-center text-3xl text-chess-textLight transition border border-chess-border"><i class="fa-solid fa-chess-rook"></i></button>
-                                <button onclick="selectPromotion('b')" class="w-16 h-16 rounded-xl bg-chess-panel hover:bg-chess-hover flex items-center justify-center text-3xl text-chess-textLight transition border border-chess-border"><i class="fa-solid fa-chess-bishop"></i></button>
-                                <button onclick="selectPromotion('n')" class="w-16 h-16 rounded-xl bg-chess-panel hover:bg-chess-hover flex items-center justify-center text-3xl text-chess-textLight transition border border-chess-border"><i class="fa-solid fa-chess-knight"></i></button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Right: Controls & Live Textbook Commentary -->
-                <div class="w-full 2xl:w-[420px] flex flex-col gap-3 min-h-[560px] bg-chess-card rounded-2xl border border-chess-border p-4 shadow-2xl">
-                    <!-- Bot Header & Status -->
-                    <div class="flex items-center justify-between pb-3 border-b border-chess-border">
-                        <div class="flex items-center gap-3">
-                            <div class="w-12 h-12 rounded-xl bg-chess-panel border border-chess-border flex items-center justify-center text-2xl text-chess-green shadow">
-                                <i class="fa-solid fa-robot"></i>
-                            </div>
-                            <div>
-                                <h3 id="bot-name-display" class="font-extrabold text-chess-textLight text-base">VtiChess Bot</h3>
-                                <p class="text-xs text-chess-green font-bold" id="bot-elo-badge">Cấp độ: 1500</p>
-                            </div>
-                        </div>
-                        <div id="bot-thinking" class="hidden text-xs text-amber-400 font-bold animate-pulse flex items-center gap-1.5 bg-amber-950/40 px-3 py-1 rounded-lg border border-amber-800/50">
-                            <i class="fa-solid fa-spinner fa-spin"></i> Đang suy nghĩ...
-                        </div>
-                    </div>
-
-                    <!-- Elo Strength Slider -->
-                    <div class="bg-chess-panel p-3 rounded-xl border border-chess-border flex flex-col gap-2">
-                        <div class="flex justify-between items-center text-xs font-bold">
-                            <span class="text-chess-textLight">Cấp độ Bot (1 - 10,000)</span>
-                            <span id="elo-value-label" class="text-chess-green text-sm font-black">1500</span>
-                        </div>
-                        <input type="range" id="bot-elo-slider" min="1" max="10000" value="1500" class="w-full accent-[#81b64c] cursor-pointer" oninput="updateBotElo(this.value)">
-                        <div class="flex justify-between text-[10px] text-chess-textMuted font-bold">
-                            <span>1 (Tập chơi)</span>
-                            <span>1500 (Trung bình)</span>
-                            <span>3000 (Đại kiện tướng)</span>
-                            <span>10000 (Thần thánh)</span>
-                        </div>
-                    </div>
-
-                    <!-- Live Textbook Move Analysis Box -->
-                    <div id="live-textbook-card" class="bg-chess-panel p-3.5 rounded-xl border border-chess-border flex flex-col gap-2 transition-all">
-                        <div class="flex items-center justify-between">
-                            <span class="text-xs font-bold text-chess-textMuted uppercase tracking-wider">Phân Tích Trực Tiếp (Sách Giáo Khoa)</span>
-                            <span id="live-move-badge" class="px-2.5 py-0.5 rounded-full text-xs font-extrabold badge-best">Tốt Nhất ⭐</span>
-                        </div>
-                        <p id="live-textbook-comment" class="text-xs text-chess-textLight font-semibold leading-relaxed">
-                            Bắt đầu ván đấu! Thực hiện nước đi của bạn để nhận phân tích chi tiết.
-                        </p>
-                    </div>
-
-                    <!-- Move History Log -->
-                    <div class="flex-1 bg-chess-panel rounded-xl border border-chess-border overflow-y-auto p-2" id="move-history-container">
-                        <table class="w-full text-xs text-left">
-                            <thead class="text-chess-textMuted border-b border-chess-border sticky top-0 bg-chess-panel font-bold">
-                                <tr>
-                                    <th class="py-1 px-2 w-10">#</th>
-                                    <th class="py-1 px-2">Trắng</th>
-                                    <th class="py-1 px-2">Đen</th>
-                                </tr>
-                            </thead>
-                            <tbody id="move-history-body">
-                                <!-- Moves dynamically added -->
-                            </tbody>
-                        </table>
-                    </div>
-
-                    <!-- Bottom Action Controls -->
-                    <div class="grid grid-cols-4 gap-2 pt-1">
-                        <button onclick="undoMove()" class="py-2.5 rounded-xl bg-chess-panel hover:bg-chess-hover text-chess-textLight text-xs font-bold transition border border-chess-border flex items-center justify-center gap-1">
-                            <i class="fa-solid fa-rotate-left"></i> Đi lại
-                        </button>
-                        <button onclick="getHint()" class="py-2.5 rounded-xl bg-chess-panel hover:bg-chess-hover text-amber-400 text-xs font-bold transition border border-chess-border flex items-center justify-center gap-1">
-                            <i class="fa-solid fa-lightbulb"></i> Gợi ý
-                        </button>
-                        <button onclick="flipBoard()" class="py-2.5 rounded-xl bg-chess-panel hover:bg-chess-hover text-chess-textLight text-xs font-bold transition border border-chess-border flex items-center justify-center gap-1">
-                            <i class="fa-solid fa-arrows-rotate"></i> Đổi bên
-                        </button>
-                        <button onclick="resignGame()" class="py-2.5 rounded-xl bg-red-950/40 hover:bg-red-900/60 text-red-400 text-xs font-bold transition border border-red-900/50 flex items-center justify-center gap-1">
-                            <i class="fa-solid fa-flag"></i> Đầu hàng
-                        </button>
-                    </div>
-                </div>
-            </section>
-
-            <!-- ================= TAB 2: CHESS.COM PLAYER LOOKUP ================= -->
-            <section id="view-review" class="view-section hidden max-w-6xl mx-auto flex flex-col gap-6">
-                <!-- Search Banner -->
-                <div class="bg-chess-card p-6 rounded-2xl border border-chess-border shadow-xl flex flex-col md:flex-row items-center justify-between gap-4">
-                    <div>
-                        <h2 class="text-xl font-black text-chess-textLight flex items-center gap-2">
-                            <i class="fa-solid fa-magnifying-glass-chart text-blue-400"></i> Tra Cứu & Phân Tích Ván Đấu Chess.com
-                        </h2>
-                        <p class="text-xs text-chess-textMuted mt-1 font-semibold">
-                            Nhập tên người chơi Chess.com bất kỳ (VD: Hikaru, MagnusCarlsen) để tải ván đấu gần nhất và chạy phân tích AI.
-                        </p>
-                    </div>
-                    <div class="flex items-center gap-2 w-full md:w-auto">
-                        <div class="relative flex-1 md:w-80">
-                            <i class="fa-solid fa-user absolute left-3.5 top-1/2 -translate-y-1/2 text-chess-textMuted"></i>
-                            <input type="text" id="chesscom-username-input" placeholder="Ví dụ: Hikaru, MagnusCarlsen" class="w-full pl-10 pr-4 py-2.5 bg-chess-panel border border-chess-border rounded-xl text-chess-textLight text-sm font-bold focus:outline-none focus:border-chess-green">
-                        </div>
-                        <button onclick="fetchChessComGames()" class="px-5 py-2.5 btn-chess-green text-white font-extrabold rounded-xl text-sm transition shadow shrink-0 flex items-center gap-2">
-                            <i class="fa-solid fa-search"></i> Tải Ván
-                        </button>
-                    </div>
-                </div>
-
-                <!-- Games Grid & Review Display -->
-                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                    <!-- Left: Recent Games List -->
-                    <div class="bg-chess-card rounded-2xl border border-chess-border p-4 flex flex-col h-[580px] shadow-xl">
-                        <h3 class="font-extrabold text-chess-textLight text-sm mb-3 flex items-center gap-2 border-b border-chess-border pb-2">
-                            <i class="fa-solid fa-list-check text-chess-green"></i> Danh Sách Ván Đấu
-                        </h3>
-                        <div id="games-list-container" class="flex-1 overflow-y-auto flex flex-col gap-2 pr-1">
-                            <div class="text-center py-20 text-chess-textMuted">
-                                <i class="fa-solid fa-chess text-4xl mb-3 opacity-30"></i>
-                                <p class="text-xs font-bold">Nhập tên người chơi ở trên hoặc nhấn nút bên dưới để xem ván mẫu.</p>
-                                <button onclick="loadDemoGames()" class="mt-3 px-4 py-2 bg-chess-panel hover:bg-chess-hover text-chess-green font-extrabold text-xs rounded-xl border border-chess-border transition">
-                                    Tải Ván Mẫu Kiện Tướng
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Right: Review Workspace Board -->
-                    <div class="lg:col-span-2 bg-chess-card rounded-2xl border border-chess-border p-6 flex flex-col gap-4 shadow-xl justify-between">
-                        <div id="review-placeholder" class="flex flex-col items-center justify-center h-[500px] text-center text-chess-textMuted">
-                            <i class="fa-solid fa-chart-pie text-5xl mb-4 text-chess-green opacity-40"></i>
-                            <h3 class="text-lg font-black text-chess-textLight">Chưa Chọn Ván Đấu</h3>
-                            <p class="text-xs font-semibold max-w-sm mt-1">Chọn một ván đấu từ danh sách bên trái để mở giao diện phân tích từng nước đi.</p>
-                        </div>
-
-                        <!-- Active Game Review Screen -->
-                        <div id="review-active-content" class="hidden flex flex-col gap-4">
-                            <!-- Players Header -->
-                            <div class="flex items-center justify-between bg-chess-panel p-4 rounded-xl border border-chess-border">
-                                <div class="flex items-center gap-4">
-                                    <div>
-                                        <p class="text-[10px] font-bold text-chess-textMuted uppercase">Trắng</p>
-                                        <p id="review-white-player" class="font-extrabold text-chess-textLight text-sm">Player 1</p>
-                                    </div>
-                                    <span class="text-lg font-black text-chess-green">VS</span>
-                                    <div>
-                                        <p class="text-[10px] font-bold text-chess-textMuted uppercase">Đen</p>
-                                        <p id="review-black-player" class="font-extrabold text-chess-textLight text-sm">Player 2</p>
-                                    </div>
-                                </div>
-                                <button onclick="runFullReviewAnalysis()" class="px-4 py-2 btn-chess-green text-white font-extrabold rounded-xl text-xs transition shadow flex items-center gap-2">
-                                    <i class="fa-solid fa-wand-magic-sparkles"></i> Phân Tích Toàn Bộ Ván
-                                </button>
-                            </div>
-
-                            <!-- Review Board & Commentary -->
-                            <div class="flex flex-col md:flex-row gap-6 items-center">
-                                <div class="board-frame relative shadow-2xl rounded-lg overflow-hidden border-2 border-chess-border shrink-0">
-                                    <div id="review-chessboard" class="chessboard-grid chessboard-review select-none theme-green"></div>
-                                </div>
-
-                                <div class="flex-1 flex flex-col gap-3 w-full">
-                                    <div class="bg-chess-panel p-4 rounded-xl border border-chess-border flex flex-col gap-2">
-                                        <div class="flex items-center justify-between">
-                                            <span class="text-xs font-extrabold text-chess-textMuted uppercase">Đánh Giá Nước Đi</span>
-                                            <span id="review-move-badge" class="px-2.5 py-0.5 rounded-full text-xs font-extrabold badge-best">Tốt Nhất ⭐</span>
-                                        </div>
-                                        <p id="review-move-explanation" class="text-xs text-chess-textLight font-semibold leading-relaxed min-h-[60px]">
-                                            Chọn nước đi bên dưới để xem bình luận từ sách giáo khoa.
-                                        </p>
-                                        <div class="flex items-center justify-between pt-2 border-t border-chess-border">
-                                            <div class="flex gap-2">
-                                                <button onclick="reviewStep(-1)" class="px-3 py-1.5 bg-chess-hover hover:bg-chess-active rounded-lg text-chess-textLight text-xs font-bold border border-chess-border"><i class="fa-solid fa-chevron-left"></i> Trước</button>
-                                                <button onclick="reviewStep(1)" class="px-3 py-1.5 bg-chess-hover hover:bg-chess-active rounded-lg text-chess-textLight text-xs font-bold border border-chess-border">Sau <i class="fa-solid fa-chevron-right"></i></button>
-                                            </div>
-                                            <span id="review-move-counter" class="text-xs font-black text-chess-green">Nước 0 / 0</span>
-                                        </div>
-                                    </div>
-
-                                    <!-- Accuracy Scorecards are populated only after engine review -->
-                                    <div class="grid grid-cols-2 gap-3">
-                                        <div class="bg-chess-panel p-3 rounded-xl border border-chess-border text-center">
-                                            <p class="text-[10px] font-bold text-chess-textMuted uppercase">Độ chính xác Trắng (ước tính)</p>
-                                            <p id="white-accuracy-score" class="text-2xl font-black text-chess-green mt-0.5">—</p>
-                                        </div>
-                                        <div class="bg-chess-panel p-3 rounded-xl border border-chess-border text-center">
-                                            <p class="text-[10px] font-bold text-chess-textMuted uppercase">Độ chính xác Đen (ước tính)</p>
-                                            <p id="black-accuracy-score" class="text-2xl font-black text-blue-400 mt-0.5">—</p>
-                                        </div>
-                                    </div>
-                                    <div class="eval-graph-wrap">
-                                        <div class="flex items-center justify-between mb-2 gap-2">
-                                            <span class="text-[10px] uppercase tracking-wider font-extrabold text-chess-textMuted">Biểu đồ lợi thế · Trắng (+) / Đen (−)</span>
-                                            <span id="review-analysis-progress" class="text-[10px] text-chess-green font-black">Chưa phân tích</span>
-                                        </div>
-                                        <canvas id="review-eval-graph" width="900" height="150" aria-label="Biểu đồ đánh giá engine"></canvas>
-                                        <div id="review-classification-summary" class="flex flex-wrap gap-1.5 mt-2"></div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-            <!-- ================= TAB 3: ANALYSIS BOARD ================= -->
-            <section id="view-analysis" class="view-section hidden max-w-6xl mx-auto flex flex-col 2xl:flex-row gap-6 items-center justify-center">
-                <div class="flex gap-3 items-stretch justify-center board-analysis-layout">
-                    <div class="eval-bar-stack bg-zinc-900 rounded-md overflow-hidden flex flex-col border border-chess-border relative shadow-inner">
-                        <div id="analysis-eval-black" class="bg-zinc-800 w-full" style="height: 50%;"></div>
-                        <div id="analysis-eval-white" class="bg-zinc-100 w-full" style="height: 50%;"></div>
-                    </div>
-                    <div class="board-frame relative shadow-2xl rounded-lg overflow-hidden border-4 border-chess-card">
-                        <div id="analysis-chessboard" class="chessboard-grid chessboard-analysis select-none theme-green"></div>
-                    </div>
-                </div>
-                <div class="w-full 2xl:w-96 bg-chess-card rounded-2xl border border-chess-border p-5 flex flex-col gap-4 shadow-2xl">
-                    <h3 class="font-extrabold text-chess-textLight text-base flex items-center gap-2">
-                        <i class="fa-solid fa-microchip text-amber-400"></i> Bàn Phân Tích VtiChess
-                    </h3>
-                    <p class="text-xs text-chess-textMuted font-semibold">Tự do xếp cờ, thử nghiệm các biến thế mở màn và xem nước đi đề xuất tốt nhất từ engine.</p>
-                    <div class="bg-chess-panel p-4 rounded-xl border border-chess-border flex flex-col gap-2">
-                        <div class="flex justify-between text-xs font-extrabold">
-                            <span class="text-chess-textMuted">Đánh giá VtiChess:</span>
-                            <span id="analysis-eval-badge" class="text-chess-green">+0.32</span>
-                        </div>
-                        <div class="text-xs text-chess-textMuted font-semibold">
-                            <span class="font-extrabold text-chess-textLight">Biến tốt nhất:</span> <span id="analysis-best-line" class="text-chess-green">Đang chờ VtiChess phân tích…</span>
-                        </div>
-                        <div id="analysis-engine-meta" class="text-[10px] text-chess-textMuted font-bold">Engine: VtiChess JS · tìm kiếm cục bộ (tối đa depth 6)</div>
-                        <div id="analysis-lines" class="engine-lines"><div class="text-[11px] text-chess-textMuted">VtiChess hiển thị các biến tốt nhất tìm được tại vị trí này.</div></div>
-                    </div>
-                    <div class="flex flex-col gap-2">
-                        <button onclick="updateAnalysisEvaluation(true)" class="w-full py-2.5 btn-chess-green text-white font-extrabold rounded-xl text-xs transition border border-chess-border"><i class="fa-solid fa-rotate mr-1"></i> Phân Tích / Thử Lại</button>
-                        <button onclick="resetAnalysisBoard()" class="w-full py-2.5 bg-chess-panel hover:bg-chess-hover text-chess-textLight font-extrabold rounded-xl text-xs transition border border-chess-border">Đặt Lại Bàn Cờ</button>
-                        <button onclick="copyFEN()" class="w-full py-2.5 bg-chess-panel hover:bg-chess-hover text-chess-textLight font-extrabold rounded-xl text-xs transition border border-chess-border">Sao Chép Chuỗi FEN</button>
-                    </div>
-                </div>
-            </section>
-
-            <!-- ================= TAB 4: SETTINGS & THEMES ================= -->
-            <section id="view-settings" class="view-section hidden max-w-4xl mx-auto flex flex-col gap-6">
-                <div class="bg-chess-card p-6 rounded-2xl border border-chess-border shadow-xl flex flex-col gap-6">
-                    <h2 class="text-lg font-black text-chess-textLight flex items-center gap-2">
-                        <i class="fa-solid fa-sliders text-purple-400"></i> Cài Đặt Giao Diện & Âm Thanh
-                    </h2>
-                    
-                    <div class="flex flex-col gap-3">
-                        <label class="text-xs font-extrabold text-chess-textMuted uppercase tracking-wider">Chủ Đề Bàn Cờ (Modern Board Themes)</label>
-                        <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                            <button onclick="setBoardTheme('theme-green')" class="p-4 bg-chess-panel border-2 border-chess-green rounded-xl flex flex-col items-center gap-2 hover:bg-chess-hover transition">
-                                <div class="w-12 h-12 rounded grid grid-cols-2 overflow-hidden shadow"><div class="bg-[#ebecd0]"></div><div class="bg-[#739552]"></div><div class="bg-[#739552]"></div><div class="bg-[#ebecd0]"></div></div>
-                                <span class="text-xs font-bold text-chess-textLight">Xanh Cây Chuẩn</span>
-                            </button>
-                            <button onclick="setBoardTheme('theme-wood')" class="p-4 bg-chess-panel border border-chess-border rounded-xl flex flex-col items-center gap-2 hover:bg-chess-hover transition">
-                                <div class="w-12 h-12 rounded grid grid-cols-2 overflow-hidden shadow"><div class="bg-[#f0d9b5]"></div><div class="bg-[#b58863]"></div><div class="bg-[#b58863]"></div><div class="bg-[#f0d9b5]"></div></div>
-                                <span class="text-xs font-bold text-chess-textLight">Gỗ Cổ Điển</span>
-                            </button>
-                            <button onclick="setBoardTheme('theme-glass')" class="p-4 bg-chess-panel border border-chess-border rounded-xl flex flex-col items-center gap-2 hover:bg-chess-hover transition">
-                                <div class="w-12 h-12 rounded grid grid-cols-2 overflow-hidden shadow"><div class="bg-[#e2e8f0]"></div><div class="bg-[#475569]"></div><div class="bg-[#475569]"></div><div class="bg-[#e2e8f0]"></div></div>
-                                <span class="text-xs font-bold text-chess-textLight">Thủy Tinh Xám</span>
-                            </button>
-                            <button onclick="setBoardTheme('theme-dark')" class="p-4 bg-chess-panel border border-chess-border rounded-xl flex flex-col items-center gap-2 hover:bg-chess-hover transition">
-                                <div class="w-12 h-12 rounded grid grid-cols-2 overflow-hidden shadow"><div class="bg-[#3b3b3b]"></div><div class="bg-[#222222]"></div><div class="bg-[#222222]"></div><div class="bg-[#3b3b3b]"></div></div>
-                                <span class="text-xs font-bold text-chess-textLight">Tối Hiện Đại</span>
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-        </div>
-    </main>
-
-    <!-- TOAST NOTIFICATIONS -->
-    <div id="toast-container" class="fixed bottom-6 right-6 z-50 flex flex-col gap-2 pointer-events-none"></div>
-
-    <!-- MAIN JAVASCRIPT LOGIC -->
-    <script>
-        // --- CHESS.COM AUDIO SYNTHESIZER (Web Audio API) ---
-        let soundEnabled = true;
-        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-
-        function playSound(type) {
-            if (!soundEnabled) return;
-            if (audioCtx.state === 'suspended') audioCtx.resume();
-            
-            const now = audioCtx.currentTime;
-            const osc = audioCtx.createOscillator();
-            const gain = audioCtx.createGain();
-            osc.connect(gain);
-            gain.connect(audioCtx.destination);
-
-            if (type === 'move') {
-                osc.type = 'sine';
-                osc.frequency.setValueAtTime(320, now);
-                osc.frequency.exponentialRampToValueAtTime(120, now + 0.08);
-                gain.gain.setValueAtTime(0.3, now);
-                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
-                osc.start(now);
-                osc.stop(now + 0.08);
-            } else if (type === 'capture') {
-                osc.type = 'triangle';
-                osc.frequency.setValueAtTime(240, now);
-                osc.frequency.exponentialRampToValueAtTime(80, now + 0.12);
-                gain.gain.setValueAtTime(0.4, now);
-                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
-                osc.start(now);
-                osc.stop(now + 0.12);
-            } else if (type === 'check') {
-                osc.type = 'square';
-                osc.frequency.setValueAtTime(520, now);
-                osc.frequency.setValueAtTime(650, now + 0.08);
-                gain.gain.setValueAtTime(0.2, now);
-                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
-                osc.start(now);
-                osc.stop(now + 0.18);
-            } else if (type === 'gameover') {
-                osc.type = 'sawtooth';
-                osc.frequency.setValueAtTime(400, now);
-                osc.frequency.setValueAtTime(300, now + 0.12);
-                osc.frequency.setValueAtTime(200, now + 0.24);
-                gain.gain.setValueAtTime(0.3, now);
-                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
-                osc.start(now);
-                osc.stop(now + 0.4);
-            }
-        }
-
-        function toggleAudio() {
-            soundEnabled = !soundEnabled;
-            document.getElementById('sound-btn').innerHTML = `<i class="fa-solid fa-volume-${soundEnabled ? 'high' : 'xmark'} text-chess-green"></i> <span class="hidden sm:inline">Âm thanh: ${soundEnabled ? 'Bật' : 'Tắt'}</span>`;
-            showToast(`Âm thanh đã được ${soundEnabled ? 'bật' : 'tắt'}`);
-        }
-
-        function showToast(msg) {
-            const container = document.getElementById('toast-container');
-            const toast = document.createElement('div');
-            toast.className = 'pointer-events-auto bg-chess-card border border-chess-border text-chess-textLight px-4 py-3 rounded-xl shadow-2xl text-xs font-bold flex items-center gap-2.5 animate-bounce';
-            toast.innerHTML = `<i class="fa-solid fa-circle-info text-chess-green"></i> <span>${msg}</span>`;
-            container.appendChild(toast);
-            setTimeout(() => {
-                toast.style.opacity = '0';
-                setTimeout(() => toast.remove(), 300);
-            }, 2500);
-        }
-
-        // --- NAVIGATION SWITCHER ---
-        function switchTab(tabId) {
-            document.querySelectorAll('.view-section').forEach(el => el.classList.add('hidden'));
-            document.querySelectorAll('.nav-btn').forEach(el => {
-                el.classList.remove('bg-chess-hover', 'text-chess-textLight');
-                el.classList.add('text-chess-textMuted');
-            });
-
-            document.getElementById(`view-${tabId}`).classList.remove('hidden');
-            const activeBtn = document.getElementById(`nav-${tabId}`);
-            activeBtn.classList.add('bg-chess-hover', 'text-chess-textLight');
-            activeBtn.classList.remove('text-chess-textMuted');
-
-            const titles = {
-                play: '<i class="fa-solid fa-robot text-chess-green"></i> Đấu Cờ Với VtiChess Bot',
-                review: '<i class="fa-solid fa-magnifying-glass-chart text-blue-400"></i> Tra Cứu & Phân Tích Ván Đấu Chess.com',
-                analysis: '<i class="fa-solid fa-microchip text-amber-400"></i> Bàn Phân Tích VtiChess',
-                settings: '<i class="fa-solid fa-sliders text-purple-400"></i> Cài Đặt Giao Diện & Âm Thanh'
-            };
-            document.getElementById('current-mode-title').innerHTML = titles[tabId];
-            if (tabId === 'analysis' && window.renderAnalysisBoard) window.renderAnalysisBoard();
-        }
-
-        // Bộ quân cờ PNG Neo: dùng ảnh quân thật thay vì emoji/ký tự.
-        function getPiecePngUrl(pieceObj) {
-            if (!pieceObj) return '';
-            const c = pieceObj.color === 'w' ? 'w' : 'b';
-            const t = pieceObj.type.toUpperCase();
-            return `https://images.chesscomfiles.com/chess-themes/pieces/neo/150/${c}${t.toLowerCase()}.png`;
-        }
-
-        // ================= TAB 1: PLAY VS BOT + REAL STOCKFISH UCI =================
-        let game = new Chess();
-        let selectedSquare = null;
-        let possibleMoves = [];
-        let botElo = 1500;
-        let playerColor = 'w';
-        let pendingPromotion = null;
-        let lastMoveBadgeSquare = null;
-        let lastMoveBadgeInfo = null;
-        let latestPlayEvalWhite = 0;
-        let botMoveInProgress = false;
-
-        // Stockfish WASM runs in the browser; the VtiChess JS search worker is the offline fallback.
-        let localEngineWorker = null;
-        let localEngineWorkers = [];
-        let localEngineReady = false;
-        let localEngineInitPromise = null;
-        let localEngineRequestId = 0;
-        const localEnginePending = new Map();
-        const LOCAL_ENGINE_TIMEOUT_MS = 25000;
-        const LOCAL_ENGINE_CACHE = new Map();
-
-        // Use a small pool of independent CPU workers. Keep mobile devices at two
-        // engines max so analysis does not consume all memory or make the UI unresponsive.
-        function getDesiredEngineWorkerCount() {
-            const cores = Math.max(1, Number(navigator.hardwareConcurrency) || 2);
-            // If the page can use SharedArrayBuffer, one multithreaded Stockfish instance
-            // is better than several competing instances. GitHub Pages normally uses the
-            // CPU worker pool below because it does not provide custom COOP/COEP headers.
-            if (window.crossOriginIsolated === true && typeof SharedArrayBuffer === 'function') return 1;
-            const coarsePointer = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
-            if (cores <= 2) return 1;
-            if (cores <= 4) return 2;
-            return coarsePointer ? 2 : 3;
-        }
-
-        function getReadyEngineWorkers() {
-            return localEngineWorkers.filter(slot => slot.ready && !slot.failed && slot.worker);
-        }
-
-        function chooseEngineWorker() {
-            const ready = getReadyEngineWorkers();
-            ready.sort((a,b) => a.pendingCount - b.pendingCount);
-            return ready[0] || null;
-        }
-
-        function updateEnginePoolStatus(preferredLabel, detail='') {
-            const ready = getReadyEngineWorkers();
-            const stockfishCount = ready.filter(slot => String(slot.label || '').includes('Stockfish')).length;
-            if (stockfishCount > 0) {
-                const label = 'Stockfish 18.0.8 · CPU workers ' + stockfishCount + '/' + localEngineWorkers.filter(slot => !slot.failed).length;
-                setEngineStatus(label + ' · sẵn sàng', 'ready',
-                    detail || ('Đang dùng ' + stockfishCount + ' worker CPU; số worker phụ thuộc tài nguyên thiết bị.'));
-            } else {
-                setEngineStatus((preferredLabel || 'VtiChess JS dự phòng') + ' · sẵn sàng', 'ready',
-                    detail || 'Đang phân tích cục bộ trên CPU.');
-            }
-        }
-
-        function setEngineStatus(text, state='loading', detail='') {
-            const pill = document.getElementById('engine-status');
-            const label = document.getElementById('engine-status-text');
-            if (label) label.textContent = text;
-            if (pill) {
-                pill.classList.toggle('ready', state === 'ready');
-                pill.classList.toggle('error', state === 'error');
-                pill.title = detail || (state === 'ready'
-                    ? 'VtiChess engine chạy cục bộ trong trình duyệt, không cần API bên ngoài.'
-                    : 'Bấm để khởi tạo lại engine cục bộ.');
-            }
-        }
-
-        function localScoreLine(score, pv, depth, multipv) {
-            const value = Number(score) || 0;
-            const isMate = Math.abs(value) >= 29000;
-            let rawScore = value, cpEquivalent = value, scorePawns = value / 100;
-            if (isMate) {
-                rawScore = Math.sign(value) * Math.max(1, Math.ceil((30000 - Math.abs(value)) / 2));
-                cpEquivalent = Math.sign(value) * Math.max(500, 10000 - Math.abs(rawScore) * 100);
-                scorePawns = cpEquivalent / 100;
-            }
-            return {depth:depth || 1, multipv:multipv || 1, scoreType:isMate?'mate':'cp',
-                rawScore, cpEquivalent:Math.round(cpEquivalent), scorePawns, pv:String(pv || '')};
-        }
-
-        function ensureLocalEngine() {
-            if (localEngineReady && getReadyEngineWorkers().length) return Promise.resolve();
-            if (localEngineInitPromise) return localEngineInitPromise;
-
-            localEngineInitPromise = new Promise((resolve,reject) => {
-                let settled = false;
-                let attempted = 0;
-                const targetCount = getDesiredEngineWorkerCount();
-                const readyTimer = setTimeout(() => {
-                    if (getReadyEngineWorkers().length) finish(null);
-                    else finish(new Error('Không khởi động được engine CPU. Kiểm tra đường dẫn engine và tải lại trang.'));
-                }, 12000);
-
-                function finish(error) {
-                    if (settled) return;
-                    settled = true;
-                    clearTimeout(readyTimer);
-                    if (error) {
-                        localEngineReady = false;
-                        setEngineStatus('VtiChess Engine · lỗi khởi tạo', 'error', error.message || String(error));
-                        reject(error);
-                    } else {
-                        localEngineReady = true;
-                        updateEnginePoolStatus();
-                        resolve();
-                    }
-                }
-
-                function handleWorkerFailure(slot,event) {
-                    if (slot.failed) return;
-                    slot.failed = true;
-                    slot.ready = false;
-                    const message = event && event.message ? String(event.message) : 'Worker lỗi không có chi tiết.';
-                    const failedWorker = slot.worker;
-                    try { if (failedWorker) failedWorker.terminate(); } catch (_) {}
-                    slot.worker = null;
-                    localEngineReady = getReadyEngineWorkers().length > 0;
-                    if (localEngineWorker === failedWorker || !localEngineWorker) {
-                        const replacement = getReadyEngineWorkers()[0];
-                        localEngineWorker = replacement ? replacement.worker : null;
-                    }
-                    if (!localEngineReady && settled) {
-                        localEngineInitPromise = null;
-                        localEngineWorkers = localEngineWorkers.filter(item => !item.failed && item.worker);
-                    }
-                    for (const [id,pending] of localEnginePending) {
-                        if (pending.slot !== slot) continue;
-                        clearTimeout(pending.timer);
-                        localEnginePending.delete(id);
-                        slot.pendingCount = Math.max(0,slot.pendingCount-1);
-                        pending.reject(new Error('Engine worker gặp lỗi: ' + message));
-                    }
-                    if (!localEngineWorkers.some(item => !item.failed && item.worker) && !settled && attempted >= targetCount) {
-                        finish(new Error('Không khởi động được engine CPU: ' + message));
-                    } else if (localEngineReady) {
-                        updateEnginePoolStatus('VtiChess JS dự phòng', message);
-                    }
-                }
-
-                function startWorker(index) {
-                    attempted++;
-                    let worker;
-                    try {
-                        worker = new Worker(new URL('./engine/vti-engine-adapter.worker.js', window.location.href));
-                    } catch (error) {
-                        if (attempted >= targetCount && !localEngineWorkers.some(item => !item.failed && item.worker)) {
-                            finish(new Error('Trình duyệt không tạo được Web Worker: ' + (error.message || String(error))));
-                        }
-                        return;
-                    }
-                    const slot = {worker,index,ready:false,failed:false,pendingCount:0,label:'VtiChess Engine'};
-                    localEngineWorkers.push(slot);
-                    if (!localEngineWorker) localEngineWorker = worker;
-
-                    worker.onmessage = (event) => {
-                        const msg = event.data || {};
-                        if (msg.type === 'engine') {
-                            slot.label = msg.engine || slot.label;
-                            updateEnginePoolStatus(slot.label,msg.detail || '');
-                            if (String(slot.label).includes('dự phòng') && msg.detail) {
-                                const comment = document.getElementById('live-textbook-comment');
-                                if (comment) comment.textContent = 'Stockfish không khởi chạy; VtiChess đang dùng engine dự phòng. Chi tiết: ' + msg.detail;
-                            }
-                            return;
-                        }
-                        if (msg.type === 'ready') {
-                            if (!slot.ready && !slot.failed) {
-                                slot.ready = true;
-                                localEngineReady = true;
-                            }
-                            slot.label = msg.engine || slot.label;
-                            if (!settled) finish(null);
-                            else updateEnginePoolStatus(slot.label);
-                            return;
-                        }
-                        if (msg.type === 'progress') {
-                            slot.label = msg.engine || slot.label;
-                            setEngineStatus(slot.label + ' đang tính · độ sâu ' + msg.depth, 'loading',
-                                'Đã xét khoảng ' + Number(msg.nodes || 0).toLocaleString('vi-VN') + ' nút.');
-                            return;
-                        }
-                        if (msg.type === 'error') {
-                            const pending = localEnginePending.get(msg.id);
-                            if (pending) {
-                                clearTimeout(pending.timer);
-                                localEnginePending.delete(msg.id);
-                                slot.pendingCount = Math.max(0,slot.pendingCount-1);
-                                pending.reject(new Error(msg.message || 'Engine nội bộ gặp lỗi.'));
-                            }
-                            return;
-                        }
-                        if (msg.type === 'result') {
-                            const pending = localEnginePending.get(msg.id);
-                            if (!pending) return;
-                            clearTimeout(pending.timer);
-                            localEnginePending.delete(msg.id);
-                            slot.pendingCount = Math.max(0,slot.pendingCount-1);
-                            const lines = (msg.lines || []).map((line,index) =>
-                                localScoreLine(line.score,line.pv,msg.depth,index+1));
-                            const chosenLine = lines.find(line => line.pv && line.pv.startsWith(msg.bestmove));
-                            const chosen = localScoreLine(msg.score,chosenLine ? chosenLine.pv : msg.bestmove,msg.depth,1);
-                            slot.label = msg.engine || slot.label;
-                            updateEnginePoolStatus(slot.label,
-                                'Depth ' + msg.depth + ' · ' + Number(msg.nodes || 0).toLocaleString('vi-VN') + ' nút · chạy trên CPU thiết bị.');
-                            pending.resolve({
-                                bestmove:msg.bestmove || '(none)',lines:lines.length ? lines : [chosen],
-                                fen:msg.fen,depth:msg.depth || 1,nodes:msg.nodes || 0,
-                                source:msg.engine || 'VtiChess JS Engine',engine:msg.engine || 'VtiChess JS Engine',score:chosen
-                            });
-                        }
-                    };
-                    worker.onerror = (event) => handleWorkerFailure(slot,event);
-                    worker.onmessageerror = () => handleWorkerFailure(slot,{message:'Không đọc được thông điệp từ worker.'});
-                }
-
-                for (let index=0;index<targetCount;index++) startWorker(index);
-                if (attempted === 0) finish(new Error('Trình duyệt không tạo được Web Worker.'));
-            }).catch(error => {
-                localEngineInitPromise = null;
-                localEngineWorker = getReadyEngineWorkers()[0]?.worker || null;
-                throw error;
-            });
-            return localEngineInitPromise;
-        }
-
-        function initVtiChess() {
-            // Compatibility alias for existing app entry points; this is VtiChess, not VtiChess.
-            return ensureLocalEngine();
-        }
-
-        async function retryVtiChess() {
-            try {
-                setEngineStatus('Đang khởi tạo VtiChess Engine…', 'loading');
-                await ensureLocalEngine();
-                const probe = await analyzeFen('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1', 2, 1);
-                showToast(`VtiChess Engine hoạt động · depth ${probe.depth}.`);
-            } catch (error) {
-                showToast(error && error.message ? error.message : 'Không khởi tạo được engine nội bộ.');
-            }
-        }
-
-        function analyzeFen(fen, depth=4, multiPV=1, options={}) {
-            const botLevel = options && options.botLevel !== undefined && options.botLevel !== null
-                ? Number(options.botLevel) : null;
-            const safeDepth = Math.max(1, Math.min(15, Number(depth) || 4));
-            const safeMultiPV = Math.max(1, Math.min(3, Number(multiPV) || 1));
-            const timeMs = options && options.timeMs !== undefined && options.timeMs !== null ? Number(options.timeMs) : null;
-            const cacheKey = [String(fen),safeDepth,safeMultiPV,
-                Number.isFinite(botLevel) ? 'bot'+botLevel : 'analysis',
-                timeMs === null ? 'defaultTime' : timeMs].join('|');
-            if (LOCAL_ENGINE_CACHE.has(cacheKey)) return Promise.resolve(LOCAL_ENGINE_CACHE.get(cacheKey));
-
-            const task = (async () => {
-                await ensureLocalEngine();
-                const slot = chooseEngineWorker();
-                if (!slot || !slot.worker) throw new Error('Không có CPU worker sẵn sàng để phân tích.');
-                const id = ++localEngineRequestId;
-                setEngineStatus('VtiChess đang phân tích trên CPU…','loading');
-                slot.pendingCount++;
-                return new Promise((resolve,reject) => {
-                    const timer = setTimeout(() => {
-                        localEnginePending.delete(id);
-                        slot.pendingCount = Math.max(0,slot.pendingCount-1);
-                        reject(new Error('Engine nội bộ quá thời gian 25 giây. Hãy thử lại hoặc giảm độ sâu.'));
-                    },LOCAL_ENGINE_TIMEOUT_MS);
-                    localEnginePending.set(id,{resolve,reject,timer,slot});
-                    try {
-                        slot.worker.postMessage({type:'analyze',id,fen:String(fen),
-                            depth:safeDepth,multiPV:safeMultiPV,
-                            botLevel:Number.isFinite(botLevel)?botLevel:null,
-                            timeMs:Number.isFinite(timeMs)?timeMs:null});
-                    } catch (error) {
-                        clearTimeout(timer);
-                        localEnginePending.delete(id);
-                        slot.pendingCount = Math.max(0,slot.pendingCount-1);
-                        reject(error);
-                    }
-                });
-            })().then(result => {
-                LOCAL_ENGINE_CACHE.set(cacheKey,result);
-                if (LOCAL_ENGINE_CACHE.size > 250) LOCAL_ENGINE_CACHE.delete(LOCAL_ENGINE_CACHE.keys().next().value);
-                return result;
-            }).catch(error => {
-                setEngineStatus('VtiChess Engine · bấm để thử lại','error',
-                    error && error.message ? error.message : String(error));
-                throw error;
-            });
-            return task;
-        }
-
-        function primaryLine(result) {
-            if (!result || !result.lines || !result.lines.length) return {scoreType:'cp',rawScore:0,cpEquivalent:0,scorePawns:0,pv:''};
-            return result.lines[0];
-        }
-
-        function scoreInWhitePerspective(fen, line) {
-            const score = line ? (line.scorePawns || 0) : 0;
-            return (String(fen).split(/\s+/)[1] || 'w') === 'w' ? score : -score;
-        }
-
-        function formatScore(line, showMate=true) {
-            if (!line) return '0.0';
-            if (showMate && line.scoreType === 'mate') return (line.rawScore > 0 ? '+' : '') + 'M' + line.rawScore;
-            const pawns = line.scorePawns || 0;
-            return (pawns > 0 ? '+' : '') + pawns.toFixed(2);
-        }
-
-        function parseUciMove(uci) {
-            if (!uci || uci === '(none)' || uci === '0000') return null;
-            return {from:uci.slice(0,2), to:uci.slice(2,4), promotion:uci.length > 4 ? uci[4] : undefined};
-        }
-
-        function uciLineToSan(fen, uciLine, maxMoves=12) {
-            if (!uciLine) return '—';
-            let temp;
-            try { temp = new Chess(fen); } catch (_) { temp = new Chess(); }
-            const parts = uciLine.trim().split(/\s+/).slice(0,maxMoves);
-            const sanParts = [];
-            for (const token of parts) {
-                const uci = parseUciMove(token);
-                if (!uci) break;
-                try {
-                    const move = temp.move(uci);
-                    if (!move) break;
-                    sanParts.push(move.san);
-                } catch (_) { break; }
-            }
-            return sanParts.join(' ') || uciLine;
-        }
-
-        function getBotDepth(level) {
-            if (level < 250) return 3;
-            if (level < 700) return 5;
-            if (level < 1300) return 7;
-            if (level < 2000) return 9;
-            if (level < 3000) return 11;
-            if (level < 5000) return 13;
-            return 15;
-        }
-
-        function updateBotElo(val) {
-            botElo = parseInt(val, 10) || 1;
-            document.getElementById('elo-value-label').innerText = botElo.toLocaleString('vi-VN');
-            let rankText = 'Tập chơi';
-            if (botElo >= 700) rankText = 'Cơ bản';
-            if (botElo >= 1300) rankText = 'Trung bình';
-            if (botElo >= 1800) rankText = 'Mạnh';
-            if (botElo >= 3000) rankText = 'Rất mạnh';
-            if (botElo > 3190) rankText = 'Toàn lực engine';
-            document.getElementById('bot-elo-badge').innerText = `Cấp độ: ${botElo.toLocaleString('vi-VN')} (${rankText})`;
-        }
-
-        function renderPlayBoard() {
-            const boardEl = document.getElementById('chessboard');
-            boardEl.innerHTML = '';
-            const board = game.board();
-            for (let r = 0; r < 8; r++) {
-                for (let c = 0; c < 8; c++) {
-                    const actualR = playerColor === 'w' ? r : 7 - r;
-                    const actualC = playerColor === 'w' ? c : 7 - c;
-                    const sqId = String.fromCharCode(97 + actualC) + (8 - actualR);
-                    const piece = board[actualR][actualC];
-                    const sqDiv = document.createElement('div');
-                    sqDiv.className = `w-full h-full flex items-center justify-center relative cursor-pointer ${(r + c) % 2 === 0 ? 'sq-light' : 'sq-dark'}`;
-                    sqDiv.dataset.square = sqId;
-                    if (c === 0) sqDiv.dataset.rankLabel = String(8 - actualR);
-                    if (r === 7) sqDiv.dataset.fileLabel = String.fromCharCode(97 + actualC);
-                    if (selectedSquare === sqId) sqDiv.classList.add('hl-selected');
-                    const history = game.history({verbose:true});
-                    if (history.length) {
-                        const lastM = history[history.length - 1];
-                        if (lastM.from === sqId || lastM.to === sqId) sqDiv.classList.add('hl-lastmove');
-                    }
-                    if (possibleMoves.includes(sqId)) sqDiv.classList.add(piece ? 'hl-capture' : 'hl-dot');
-                    if (piece) {
-                        const pieceEl = document.createElement('img');
-                        pieceEl.className = 'piece-img';
-                        pieceEl.alt = `${piece.color === 'w' ? 'Trắng' : 'Đen'} ${piece.type}`;
-                        pieceEl.draggable = false;
-                        pieceEl.src = getPiecePngUrl(piece);
-                        pieceEl.onerror = function(){ this.style.display='none'; };
-                        sqDiv.appendChild(pieceEl);
-                    }
-                    if (lastMoveBadgeSquare === sqId && lastMoveBadgeInfo) {
-                        const badgeDiv = document.createElement('div');
-                        badgeDiv.className = `badge-icon-overlay ${lastMoveBadgeInfo.bgClass}`;
-                        badgeDiv.textContent = lastMoveBadgeInfo.icon;
-                        sqDiv.appendChild(badgeDiv);
-                    }
-                    sqDiv.addEventListener('click', () => handleSquareClick(sqId));
-                    boardEl.appendChild(sqDiv);
-                }
-            }
-            updateEvalBar();
-            updateMoveHistory();
-        }
-
-        function handleSquareClick(sq) {
-            if (game.game_over() || botMoveInProgress || game.turn() !== playerColor) return;
-            if (selectedSquare === null) {
-                const piece = game.get(sq);
-                if (piece && piece.color === playerColor) {
-                    selectedSquare = sq;
-                    possibleMoves = game.moves({square:sq, verbose:true}).map(m => m.to);
-                    renderPlayBoard();
-                }
-                return;
-            }
-            if (selectedSquare === sq) {
-                selectedSquare = null; possibleMoves = []; renderPlayBoard(); return;
-            }
-            const piece = game.get(selectedSquare);
-            const isPromotion = piece && piece.type === 'p' && ((piece.color === 'w' && sq[1] === '8') || (piece.color === 'b' && sq[1] === '1'));
-            if (isPromotion) {
-                pendingPromotion = {from:selectedSquare,to:sq,beforeFen:game.fen(),mover:game.turn()};
-                document.getElementById('promotion-modal').classList.remove('hidden');
-                return;
-            }
-            const beforeFen = game.fen();
-            const mover = game.turn();
-            const moveRes = game.move({from:selectedSquare,to:sq,promotion:'q'});
-            if (moveRes) {
-                executeMoveEffect(moveRes);
-                selectedSquare = null; possibleMoves = []; lastMoveBadgeSquare = moveRes.to;
-                lastMoveBadgeInfo = null;
-                renderPlayBoard();
-                const afterFen = game.fen();
-                evaluatePlayedMove(beforeFen, afterFen, moveRes, mover).finally(() => {
-                    if (!game.game_over()) queueBotMove();
-                    else showGameResult();
-                });
-            } else {
-                const pieceAtTarget = game.get(sq);
-                if (pieceAtTarget && pieceAtTarget.color === playerColor) {
-                    selectedSquare = sq;
-                    possibleMoves = game.moves({square:sq,verbose:true}).map(m=>m.to);
-                } else { selectedSquare = null; possibleMoves = []; }
-                renderPlayBoard();
-            }
-        }
-
-        function executeMoveEffect(mRes) {
-            if (!mRes) return;
-            if (game.in_check()) playSound('check');
-            else if (mRes.captured) playSound('capture');
-            else playSound('move');
-        }
-
-        function confidenceAdjustedLoss(lossCp, depth, timeMs=Infinity) {
-            // A fast search can reach a decent nominal depth without stabilizing its score.
-            // Account for both completed depth and the actual time budget to avoid false blunders.
-            const depthFactor = depth <= 1 ? 0.20 : depth === 2 ? 0.35 : depth === 3 ? 0.60 : 1;
-            const timeFactor = !Number.isFinite(timeMs) ? 1
-                : timeMs <= 150 ? 0.45
-                : timeMs <= 250 ? 0.60
-                : timeMs < 450 ? 0.80 : 1;
-            return Math.max(0, lossCp) * Math.min(depthFactor, timeFactor);
-        }
-
-        function classifyLoss(lossCp, isBest, depth=4, timeMs=Infinity) {
-            const confidenceLoss = confidenceAdjustedLoss(lossCp, depth, timeMs);
-            const confidenceNote = depth < 4 || timeMs < 450 ? ' (đánh giá sơ bộ · cần xác minh thêm)' : '';
-            if (isBest) return {key:'best',name:depth < 4 || timeMs < 450 ? 'Tốt nhất tìm được · sơ bộ' : 'Tốt nhất tìm được',badge:'badge-best',icon:'✓',message:'Nước đi đứng đầu trong lượt tìm kiếm hiện tại.' + confidenceNote};
-            if (confidenceLoss <= 20) return {key:'excellent',name:'Rất tốt',badge:'badge-best',icon:'!',message:'Độ hụt điểm so với lựa chọn đầu bảng rất nhỏ.' + confidenceNote};
-            if (confidenceLoss <= 45) return {key:'good',name:'Tốt',badge:'badge-good',icon:'✓',message:'Nước đi hợp lý; còn lựa chọn được engine chấm nhỉnh hơn.' + confidenceNote};
-            if (confidenceLoss <= 100) return {key:'inaccuracy',name:'Chưa chính xác',badge:'badge-inaccuracy',icon:'?!',message:'Nước đi làm giảm lợi thế theo đánh giá hiện tại.' + confidenceNote};
-            if (confidenceLoss <= 250) return {key:'mistake',name:'Sai lầm',badge:'badge-mistake',icon:'?',message:'Nước đi bỏ lỡ cách chơi tốt hơn và làm xấu thế cờ.' + confidenceNote};
-            return {key:'blunder',name:'Sai lầm lớn',badge:'badge-blunder',icon:'??',message:'Nước đi làm mất nhiều lợi thế theo đánh giá hiện tại.' + confidenceNote};
-        }
-
-        async function evaluatePlayedMove(beforeFen, afterFen, move, mover) {
-            const commentaryEl = document.getElementById('live-textbook-comment');
-            const badgeEl = document.getElementById('live-move-badge');
-            commentaryEl.textContent = 'VtiChess đang so sánh thế cờ trước và sau nước đi…';
-            badgeEl.className = 'px-2.5 py-0.5 rounded-full text-xs font-extrabold bg-chess-hover text-chess-textLight';
-            badgeEl.textContent = 'Đang phân tích';
-            try {
-                let searchTimeMs = 350;
-                let before = await analyzeFen(beforeFen, 10, 1, {timeMs:searchTimeMs});
-                let after = await analyzeFen(afterFen, 10, 1, {timeMs:searchTimeMs});
-                let beforeLine = primaryLine(before), afterLine = primaryLine(after);
-                let rawLossCp = Math.max(0, beforeLine.cpEquivalent + afterLine.cpEquivalent);
-                let expected = parseUciMove(before.bestmove);
-                let isBest = !!expected && expected.from === move.from && expected.to === move.to && (expected.promotion || '') === (move.promotion || '');
-
-                // If a quick first pass suggests a real mistake, verify it with a deeper search
-                // before showing a harsh label. This keeps ordinary opening moves from being
-                // punished because of a noisy shallow evaluation.
-                if (!isBest && rawLossCp >= 80) {
-                    searchTimeMs = 650;
-                    before = await analyzeFen(beforeFen, 12, 1, {timeMs:searchTimeMs});
-                    after = await analyzeFen(afterFen, 12, 1, {timeMs:searchTimeMs});
-                    beforeLine = primaryLine(before);
-                    afterLine = primaryLine(after);
-                    rawLossCp = Math.max(0, beforeLine.cpEquivalent + afterLine.cpEquivalent);
-                    expected = parseUciMove(before.bestmove);
-                    isBest = !!expected && expected.from === move.from && expected.to === move.to && (expected.promotion || '') === (move.promotion || '');
-                }
-
-                const confidenceDepth = Math.min(beforeLine.depth || before.depth || 1, afterLine.depth || after.depth || 1);
-                const lossCp = confidenceAdjustedLoss(rawLossCp, confidenceDepth, searchTimeMs);
-                const cls = classifyLoss(rawLossCp, isBest, confidenceDepth, searchTimeMs);
-                badgeEl.className = `px-2.5 py-0.5 rounded-full text-xs font-extrabold ${cls.badge}`;
-                badgeEl.textContent = `${cls.name}${isBest ? '' : ` · −${(lossCp/100).toFixed(2)}`}`;
-                commentaryEl.textContent = `${cls.message} VtiChess đánh giá sau nước đi: ${formatWhiteScore(afterFen, afterLine)}. Gợi ý: ${uciLineToSan(beforeFen, before.bestmove, 1)}.`;
-                lastMoveBadgeInfo = {bgClass:cls.badge, icon:cls.icon};
-                lastMoveBadgeSquare = move.to;
-                if (game.fen() === afterFen) renderPlayBoard();
-                latestPlayEvalWhite = scoreInWhitePerspective(afterFen, afterLine);
-                updateEvalBar();
-            } catch (error) {
-                commentaryEl.textContent = 'Chưa lấy được phân tích VtiChess. Kiểm tra các tệp engine cục bộ rồi thử lại. Nước đi vẫn hợp lệ.';
-                badgeEl.className = 'px-2.5 py-0.5 rounded-full text-xs font-extrabold badge-inaccuracy';
-                badgeEl.textContent = 'Engine chưa sẵn sàng';
-            }
-        }
-
-        function formatWhiteScore(fen, line) {
-            if (line && line.scoreType === 'mate') {
-                const mate = (fen.split(/\s+/)[1] === 'w') ? line.rawScore : -line.rawScore;
-                return (mate > 0 ? '+' : '') + 'M' + mate;
-            }
-            const val = scoreInWhitePerspective(fen, line);
-            return (val > 0 ? '+' : '') + val.toFixed(2);
-        }
-
-        function selectPromotion(pPiece) {
-            document.getElementById('promotion-modal').classList.add('hidden');
-            if (!pendingPromotion) return;
-            const pending = pendingPromotion;
-            pendingPromotion = null;
-            const moveRes = game.move({from:pending.from,to:pending.to,promotion:pPiece});
-            if (moveRes) {
-                executeMoveEffect(moveRes);
-                selectedSquare = null; possibleMoves = []; lastMoveBadgeSquare = moveRes.to; lastMoveBadgeInfo = null;
-                renderPlayBoard();
-                evaluatePlayedMove(pending.beforeFen, game.fen(), moveRes, pending.mover).finally(() => {
-                    if (!game.game_over()) queueBotMove(); else showGameResult();
-                });
-            }
-        }
-
-        async function queueBotMove() {
-            if (botMoveInProgress || game.game_over() || game.turn() === playerColor) return;
-            botMoveInProgress = true;
-            document.getElementById('bot-thinking').classList.remove('hidden');
-            try {
-                const positionFen = game.fen();
-                let botMove = null;
-                const legal = game.moves({verbose:true});
-                // Very low slider values deliberately play a random legal move occasionally.
-                if (botElo < 180 && Math.random() < 0.45) {
-                    botMove = legal[Math.floor(Math.random() * legal.length)];
-                } else {
-                    const result = await analyzeFen(positionFen, getBotDepth(botElo), 1, {botLevel:botElo});
-                    if (game.fen() !== positionFen || game.game_over()) return;
-                    const uci = parseUciMove(result.bestmove);
-                    if (uci) botMove = legal.find(m => m.from === uci.from && m.to === uci.to && (m.promotion || '') === (uci.promotion || ''));
-                }
-                if (!botMove || game.fen() !== positionFen) return;
-                const res = game.move({from:botMove.from,to:botMove.to,promotion:botMove.promotion || 'q'});
-                if (res) {
-                    executeMoveEffect(res);
-                    lastMoveBadgeSquare = res.to;
-                    lastMoveBadgeInfo = null;
-                    latestPlayEvalWhite = 0;
-                    renderPlayBoard();
-                    try {
-                        const evaluatedFen = game.fen();
-                        const evalResult = await analyzeFen(evaluatedFen, 9, 1);
-                        if (game.fen() === evaluatedFen) {
-                            const line = primaryLine(evalResult);
-                            latestPlayEvalWhite = scoreInWhitePerspective(game.fen(), line);
-                            updateEvalBar();
-                            document.getElementById('live-move-badge').className = 'px-2.5 py-0.5 rounded-full text-xs font-extrabold badge-best';
-                            document.getElementById('live-move-badge').textContent = 'VtiChess đã chọn';
-                            document.getElementById('live-textbook-comment').textContent = `Bot chọn ${res.san}. Engine đánh giá thế cờ: ${formatWhiteScore(game.fen(), line)}.`;
-                        }
-                    } catch (_) {}
-                    renderPlayBoard();
-                    if (game.game_over()) showGameResult();
-                }
-            } catch (error) {
-                showToast('VtiChess Engine lỗi. Hãy tải lại trang hoặc kiểm tra engine/vti-engine.worker.js và vendor/chess.js.');
-            } finally {
-                botMoveInProgress = false;
-                document.getElementById('bot-thinking').classList.add('hidden');
-                renderPlayBoard();
-            }
-        }
-
-        function showGameResult() {
-            playSound('gameover');
-            const msg = game.in_checkmate() ? `Chiếu hết! ${game.turn() === 'w' ? 'Đen' : 'Trắng'} thắng.` : 'Ván đấu kết thúc: hòa hoặc không còn nước hợp lệ.';
-            document.getElementById('live-textbook-comment').textContent = msg;
-        }
-
-        function updateEvalBar() {
-            const val = Math.max(-10, Math.min(10, latestPlayEvalWhite));
-            const whitePct = 50 + val * 5;
-            const blackEl = document.getElementById('eval-bar-black');
-            const whiteEl = document.getElementById('eval-bar-white');
-            const textEl = document.getElementById('eval-score-text');
-            if (blackEl) blackEl.style.height = `${100-whitePct}%`;
-            if (whiteEl) whiteEl.style.height = `${whitePct}%`;
-            if (textEl) textEl.innerText = (latestPlayEvalWhite > 0 ? '+' : '') + latestPlayEvalWhite.toFixed(1);
-        }
-
-        function updateMoveHistory() {
-            const history = game.history({verbose:true});
-            const tbody = document.getElementById('move-history-body');
-            tbody.innerHTML = '';
-            for (let i=0; i<history.length; i+=2) {
-                const tr = document.createElement('tr');
-                tr.className = 'border-b border-chess-border/30 hover:bg-chess-hover/50';
-                const moveNum = Math.floor(i/2)+1;
-                const wMove = history[i] ? history[i].san : '';
-                const bMove = history[i+1] ? history[i+1].san : '';
-                tr.innerHTML = `<td class="py-1 px-2 font-bold text-chess-textMuted">${moveNum}.</td><td class="py-1 px-2 font-extrabold text-chess-textLight">${wMove}</td><td class="py-1 px-2 font-extrabold text-chess-textLight">${bMove}</td>`;
-                tbody.appendChild(tr);
-            }
-            const container = document.getElementById('move-history-container');
-            container.scrollTop = container.scrollHeight;
-        }
-
-        function undoMove() {
-            if (botMoveInProgress) return;
-            game.undo();
-            if (game.history().length && game.turn() !== playerColor) game.undo();
-            selectedSquare = null; possibleMoves = []; lastMoveBadgeSquare = null; lastMoveBadgeInfo = null;
-            latestPlayEvalWhite = 0;
-            renderPlayBoard();
-            showToast('Đã lùi lại nước đi.');
-        }
-
-        async function getHint() {
-            try {
-                const result = await analyzeFen(game.fen(), 12, 1);
-                const san = uciLineToSan(game.fen(), result.bestmove, 1);
-                showToast(`VtiChess gợi ý: ${san}`);
-                document.getElementById('live-textbook-comment').textContent = `Nước tốt nhất theo VtiChess: ${san}. Biến chính: ${uciLineToSan(game.fen(), primaryLine(result).pv, 8)}.`;
-            } catch (_) { showToast('VtiChess chưa sẵn sàng.'); }
-        }
-
-        function flipBoard() {
-            playerColor = playerColor === 'w' ? 'b' : 'w';
-            renderPlayBoard();
-            showToast(`Bạn đang cầm quân ${playerColor === 'w' ? 'Trắng' : 'Đen'}.`);
-            if (game.turn() !== playerColor) queueBotMove();
-        }
-
-        function resignGame() {
-            playSound('gameover');
-            game.reset(); selectedSquare = null; possibleMoves = []; lastMoveBadgeSquare = null; lastMoveBadgeInfo = null;
-            latestPlayEvalWhite = 0; renderPlayBoard();
-            showToast('Đã kết thúc ván hiện tại.');
-        }
-
-        function startNewGame() {
-            game.reset(); selectedSquare = null; possibleMoves = []; lastMoveBadgeSquare = null; lastMoveBadgeInfo = null;
-            latestPlayEvalWhite = 0; pendingPromotion = null;
-            document.getElementById('promotion-modal').classList.add('hidden');
-            document.getElementById('live-move-badge').className = 'px-2.5 py-0.5 rounded-full text-xs font-extrabold badge-best';
-            document.getElementById('live-move-badge').textContent = 'Chờ nước đi';
-            document.getElementById('live-textbook-comment').textContent = 'VtiChess sẽ chấm nước đi sau khi bạn di chuyển.';
-            renderPlayBoard(); showToast('Ván mới bắt đầu!');
-            if (playerColor === 'b') queueBotMove();
-        }
-
-        // ================= TAB 2: CHESS.COM REVIEW & LOOKUP =================
-        let loadedGames = [];
-        let reviewHistory = [];
-        let reviewCurrentIdx = 0;
-        let reviewChess = new Chess();
-
-        async function fetchChessComGames() {
-            const username = document.getElementById('chesscom-username-input').value.trim();
-            if (!username) { showToast("Vui lòng nhập username Chess.com!"); return; }
-
-            showToast(`Đang tải ván đấu của ${username}...`);
-            try {
-                const res = await fetch(`https://api.chess.com/pub/player/${username}/games/archives`);
-                if (!res.ok) throw new Error();
-                const data = await res.json();
-                if (!data.archives || data.archives.length === 0) throw new Error();
-
-                const lastArchive = data.archives[data.archives.length - 1];
-                const gRes = await fetch(lastArchive);
-                const gData = await gRes.json();
-
-                loadedGames = gData.games.slice(-10).reverse();
-                renderGamesList();
-                showToast(`Đã tải thành công ${loadedGames.length} ván gần nhất!`);
-            } catch (err) {
-                showToast("Không thể tải từ Chess.com API. Đang mở ván mẫu Kiện tướng!");
-                loadDemoGames();
-            }
-        }
-
-        function loadDemoGames() {
-            loadedGames = [
-                {
-                    white: { username: "MagnusCarlsen", rating: 2882 },
-                    black: { username: "Hikaru", rating: 2875 },
-                    pgn: "1. e4 e5 2. Nf3 Nc6 3. Bc4 Bc5 4. O-O Nf6 5. d3 d6 6. c3 a6 7. Re1 Ba7 8. h3 h6"
-                },
-                {
-                    white: { username: "GothamChess", rating: 2450 },
-                    black: { username: "DanyaNaroditsky", rating: 2650 },
-                    pgn: "1. d4 Nf6 2. c4 e6 3. Nc3 Bb4 4. e3 O-O 5. Bd3 d5 6. Nf3 c5"
-                }
-            ];
-            renderGamesList();
-        }
-
-        function renderGamesList() {
-            const container = document.getElementById('games-list-container');
-            container.innerHTML = '';
-
-            loadedGames.forEach((g, idx) => {
-                const item = document.createElement('div');
-                item.className = 'p-3 bg-chess-panel rounded-xl border border-chess-border hover:border-chess-green cursor-pointer transition flex items-center justify-between';
-                item.innerHTML = `
-                    <div class="overflow-hidden">
-                        <p class="text-xs font-black text-chess-textLight truncate">${g.white.username} vs ${g.black.username}</p>
-                        <p class="text-[10px] text-chess-textMuted font-bold">Chế độ Chớp / Siêu chớp</p>
-                    </div>
-                    <button onclick="selectGameForReview(${idx})" class="px-3 py-1.5 btn-chess-green text-white font-extrabold text-xs rounded-lg shrink-0">
-                        Xem Ván
-                    </button>
-                `;
-                container.appendChild(item);
-            });
-        }
-
-        let reviewStartFen = new Chess().fen();
-        let reviewMoveResults = [];
-        let reviewPositionScores = [];
-        let reviewAnalysisRunning = false;
-
-        function selectGameForReview(idx) {
-            const g = loadedGames[idx];
-            if (!g) return;
-            document.getElementById('review-placeholder').classList.add('hidden');
-            document.getElementById('review-active-content').classList.remove('hidden');
-            document.getElementById('review-white-player').innerText = `${g.white.username} (${g.white.rating})`;
-            document.getElementById('review-black-player').innerText = `${g.black.username} (${g.black.rating})`;
-            reviewChess = new Chess();
-            reviewChess.load_pgn(g.pgn);
-            reviewHistory = reviewChess.history({verbose:true});
-            const fenTag = (g.pgn.match(/\[FEN\s+"([^"]+)"\]/i) || [])[1];
-            reviewStartFen = fenTag || new Chess().fen();
-            reviewChess.load(reviewStartFen);
-            reviewCurrentIdx = 0;
-            reviewMoveResults = [];
-            reviewPositionScores = [];
-            document.getElementById('white-accuracy-score').textContent = '—';
-            document.getElementById('black-accuracy-score').textContent = '—';
-            document.getElementById('review-analysis-progress').textContent = 'Chưa phân tích';
-            document.getElementById('review-classification-summary').innerHTML = '';
-            drawReviewEvalGraph([]);
-            renderReviewBoard();
-        }
-
-        function renderReviewBoard() {
-            const boardEl = document.getElementById('review-chessboard');
-            boardEl.innerHTML = '';
-            const board = reviewChess.board();
-            const selectedResult = reviewCurrentIdx > 0 ? reviewMoveResults[reviewCurrentIdx-1] : null;
-            for (let r=0; r<8; r++) {
-                for (let c=0; c<8; c++) {
-                    const sqId = String.fromCharCode(97+c) + (8-r);
-                    const piece = board[r][c];
-                    const sqDiv = document.createElement('div');
-                    sqDiv.className = `w-full h-full flex items-center justify-center relative ${(r+c)%2===0 ? 'sq-light' : 'sq-dark'}`;
-                    sqDiv.dataset.square = sqId;
-                    if (c === 0) sqDiv.dataset.rankLabel = String(8 - r);
-                    if (r === 7) sqDiv.dataset.fileLabel = String.fromCharCode(97 + c);
-                    if (reviewHistory.length && reviewCurrentIdx > 0) {
-                        const prev = reviewHistory[reviewCurrentIdx-1];
-                        if (prev && (prev.from === sqId || prev.to === sqId)) sqDiv.classList.add('hl-lastmove');
-                    }
-                    if (piece) {
-                        const pieceEl = document.createElement('img');
-                        pieceEl.className = 'piece-img';
-                        pieceEl.alt = `${piece.color === 'w' ? 'Trắng' : 'Đen'} ${piece.type}`;
-                        pieceEl.draggable = false;
-                        pieceEl.src = getPiecePngUrl(piece);
-                        pieceEl.onerror = function(){ this.style.display='none'; };
-                        sqDiv.appendChild(pieceEl);
-                    }
-                    if (selectedResult && selectedResult.move.to === sqId) {
-                        const badge = document.createElement('div');
-                        badge.className = `badge-icon-overlay ${selectedResult.classification.badge}`;
-                        badge.textContent = selectedResult.classification.icon;
-                        sqDiv.appendChild(badge);
-                    }
-                    boardEl.appendChild(sqDiv);
-                }
-            }
-            document.getElementById('review-move-counter').innerText = `Nước ${reviewCurrentIdx} / ${reviewHistory.length}`;
-            const badgeEl = document.getElementById('review-move-badge');
-            const explanationEl = document.getElementById('review-move-explanation');
-            if (!selectedResult) {
-                badgeEl.className = 'px-2.5 py-0.5 rounded-full text-xs font-extrabold badge-best';
-                badgeEl.textContent = reviewMoveResults.length ? 'Chọn một nước đi' : 'Chưa phân tích';
-                explanationEl.textContent = reviewMoveResults.length ? 'Dùng Trước/Sau để xem đánh giá từng nước.' : 'Bấm “Phân Tích Toàn Bộ Ván” để VtiChess kiểm tra từng vị trí. Kết quả chưa được tự điền trước.';
-                return;
-            }
-            const cls = selectedResult.classification;
-            badgeEl.className = `px-2.5 py-0.5 rounded-full text-xs font-extrabold ${cls.badge}`;
-            badgeEl.textContent = `${cls.name} · −${(selectedResult.lossCp/100).toFixed(2)}`;
-            const bestSan = uciLineToSan(selectedResult.beforeFen, selectedResult.bestMove, 1);
-            const pvSan = uciLineToSan(selectedResult.beforeFen, selectedResult.pv, 8);
-            explanationEl.textContent = `${selectedResult.move.san}: ${cls.message} Mất lợi thế ước tính ${Math.round(selectedResult.lossCp)} centipawn. Nước tốt nhất: ${bestSan}. Biến chính: ${pvSan}.`;
-        }
-
-        function reviewStep(step) {
-            if (step === 1 && reviewCurrentIdx < reviewHistory.length) {
-                const m = reviewHistory[reviewCurrentIdx];
-                reviewChess.move({from:m.from,to:m.to,promotion:m.promotion});
-                reviewCurrentIdx++;
-            } else if (step === -1 && reviewCurrentIdx > 0) {
-                reviewCurrentIdx--;
-                reviewChess.undo();
-            }
-            renderReviewBoard();
-        }
-
-        function drawReviewEvalGraph(scores) {
-            const canvas = document.getElementById('review-eval-graph');
-            if (!canvas) return;
-            const ctx = canvas.getContext('2d');
-            const w = canvas.width, h = canvas.height;
-            ctx.clearRect(0,0,w,h);
-            ctx.fillStyle = '#1b1a18'; ctx.fillRect(0,0,w,h);
-            const pad = 16, mid = h/2;
-            ctx.strokeStyle = '#45413b'; ctx.lineWidth = 1;
-            for (let i=0;i<=4;i++) { const y=pad+i*(h-pad*2)/4; ctx.beginPath(); ctx.moveTo(pad,y); ctx.lineTo(w-pad,y); ctx.stroke(); }
-            ctx.strokeStyle = '#78716c'; ctx.setLineDash([5,5]); ctx.beginPath(); ctx.moveTo(pad,mid); ctx.lineTo(w-pad,mid); ctx.stroke(); ctx.setLineDash([]);
-            if (!scores || !scores.length) {
-                ctx.fillStyle = '#989795'; ctx.font = 'bold 20px Nunito, sans-serif'; ctx.textAlign = 'center'; ctx.fillText('Chạy phân tích để xem biểu đồ',w/2,mid-2); return;
-            }
-            const points = scores.map((item,i)=>({x:pad+(w-2*pad)*(scores.length===1?0.5:i/(scores.length-1)),y:mid-Math.max(-8,Math.min(8,item.whiteEval))*(h-2*pad)/16}));
-            ctx.beginPath();
-            points.forEach((p,i)=>{ if(i===0) ctx.moveTo(p.x,p.y); else ctx.lineTo(p.x,p.y); });
-            ctx.lineWidth=4; ctx.lineJoin='round'; ctx.lineCap='round'; ctx.strokeStyle='#81b64c'; ctx.stroke();
-            const last=points[points.length-1]; ctx.fillStyle='#a3d168'; ctx.beginPath(); ctx.arc(last.x,last.y,5,0,Math.PI*2); ctx.fill();
-            ctx.fillStyle='#d6d3d1'; ctx.font='bold 16px Nunito, sans-serif'; ctx.textAlign='left'; ctx.fillText('+8',pad,14); ctx.fillText('0',pad,mid-5); ctx.fillText('−8',pad,h-2);
-        }
-
-        function accuracyFromLoss(lossCp) {
-            // Indicative local estimate only; Chess.com's official accuracy model is proprietary.
-            return Math.max(0, Math.min(100, 100 * Math.exp(-Math.max(0,lossCp) / 160)));
-        }
-
-        async function runFullReviewAnalysis() {
-            if (reviewAnalysisRunning) return;
-            if (!reviewHistory.length) { showToast('Ván chưa có nước đi để phân tích.'); return; }
-            reviewAnalysisRunning = true;
-            const button = document.querySelector('#review-active-content button[onclick="runFullReviewAnalysis()"]');
-            if (button) { button.disabled=true; button.innerHTML='<i class="fa-solid fa-spinner fa-spin"></i> Đang phân tích…'; }
-            try {
-                await initVtiChess();
-                const temp = new Chess(reviewStartFen);
-                const positions = [{fen:temp.fen()}];
-                const moves = [];
-                for (const historyMove of reviewHistory) {
-                    const beforeFen = temp.fen();
-                    const played = temp.move({from:historyMove.from,to:historyMove.to,promotion:historyMove.promotion});
-                    if (!played) continue;
-                    const afterFen = temp.fen();
-                    moves.push({move:played,beforeFen,afterFen});
-                    positions.push({fen:afterFen});
-                }
-                const scores = new Array(positions.length);
-                // Each CPU worker analyzes a different position concurrently. This accelerates
-                // whole-game review without pretending one Stockfish search is GPU-accelerated.
-                for (let start=0;start<positions.length;) {
-                    const batchSize = Math.max(1,getReadyEngineWorkers().length);
-                    const end = Math.min(positions.length,start+batchSize);
-                    const results = await Promise.all(positions.slice(start,end).map((position,index) =>
-                        analyzeFen(position.fen,9,1,{timeMs:reviewTimeMs}).then(result => ({index:start+index,result}))
-                    ));
-                    for (const item of results) {
-                        const positionIndex = item.index;
-                        const result = item.result;
-                        const line = primaryLine(result);
-                        scores[positionIndex] = {
-                            fen:positions[positionIndex].fen,line,sideScore:line.cpEquivalent,
-                            whiteEval:scoreInWhitePerspective(positions[positionIndex].fen,line),
-                            result,timeMs:reviewTimeMs
-                        };
-                    }
-                    start = end;
-                    const progressEl = document.getElementById('review-analysis-progress');
-                    if (progressEl) progressEl.textContent = start + '/' + positions.length + ' vị trí · CPU song song';
-                    drawReviewEvalGraph(scores.slice(0,start));
-                }
-
-                // Re-check only the most suspicious moves with a longer budget. Most positions
-                // stay on the fast path; a handful of apparent mistakes get a stronger second look.
-                const provisionalLosses = moves.map((record,i)=>{
-                    const before = scores[i], after = scores[i+1];
-                    if (!before || !after) return null;
-                    const bestUci = parseUciMove(before.result && before.result.bestmove);
-                    const isBest = !!bestUci && bestUci.from===record.move.from && bestUci.to===record.move.to &&
-                        (bestUci.promotion||'')===(record.move.promotion||'');
-                    const rawLossCp = isBest ? 0 : Math.max(0, Math.min(3000, before.sideScore + after.sideScore));
-                    return {i,rawLossCp,isBest};
-                }).filter(item=>item && !item.isBest && item.rawLossCp>=80)
-                  .sort((a,b)=>b.rawLossCp-a.rawLossCp);
-                const verifyCount = positions.length > 70 ? 4 : 5;
-                const verifyPositions = new Set();
-                for (const candidate of provisionalLosses.slice(0,verifyCount)) {
-                    verifyPositions.add(candidate.i);
-                    verifyPositions.add(candidate.i+1);
-                }
-                const verifyTimeMs = positions.length > 70 ? 400 : 550;
-                if (verifyPositions.size) {
-                    const verifyList = Array.from(verifyPositions).sort((a,b)=>a-b);
-                    const progressEl = document.getElementById('review-analysis-progress');
-                    for (let n=0;n<verifyList.length;) {
-                        const batchSize = Math.max(1,getReadyEngineWorkers().length);
-                        const batch = verifyList.slice(n,n+batchSize);
-                        const verified = await Promise.all(batch.map(positionIndex =>
-                            analyzeFen(positions[positionIndex].fen,12,1,{timeMs:verifyTimeMs})
-                                .then(result => ({positionIndex,result}))
-                        ));
-                        for (const item of verified) {
-                            const positionIndex = item.positionIndex;
-                            const result = item.result;
-                            const line = primaryLine(result);
-                            scores[positionIndex] = {
-                                fen:positions[positionIndex].fen,line,sideScore:line.cpEquivalent,
-                                whiteEval:scoreInWhitePerspective(positions[positionIndex].fen,line),
-                                result,timeMs:verifyTimeMs
-                            };
-                        }
-                        n += batch.length;
-                        if (progressEl) progressEl.textContent = 'Xác minh ' + n + '/' + verifyList.length + ' vị trí nghi ngờ · CPU song song';
-                        drawReviewEvalGraph(scores.filter(Boolean));
-                    }
-                }
-
-                reviewPositionScores = scores;
-                reviewMoveResults = moves.map((record,i)=>{
-                    const before = scores[i] || {sideScore:0,result:{bestmove:'(none)'}};
-                    const after = scores[i+1] || {sideScore:0};
-                    const bestMove = before.result.bestmove;
-                    const bestUci = parseUciMove(bestMove);
-                    const isBest = !!bestUci && bestUci.from===record.move.from && bestUci.to===record.move.to && (bestUci.promotion||'')===(record.move.promotion||'');
-                    const rawLossCp = isBest ? 0 : Math.max(0, Math.min(3000, before.sideScore + after.sideScore));
-                    const confidenceDepth = Math.min(before.line?.depth || before.result?.depth || 1, after.line?.depth || after.result?.depth || 1);
-                    const confidenceTimeMs = Math.min(before.timeMs || reviewTimeMs, after.timeMs || reviewTimeMs);
-                    const lossCp = confidenceAdjustedLoss(rawLossCp, confidenceDepth, confidenceTimeMs);
-                    const cls = classifyLoss(rawLossCp,isBest,confidenceDepth,confidenceTimeMs);
-                    return {move:record.move,beforeFen:record.beforeFen,afterFen:record.afterFen,bestMove,pv:primaryLine(before.result).pv,lossCp,classification:cls};
-                });
-                const whiteLosses = reviewMoveResults.filter(x=>x.move.color==='w').map(x=>x.lossCp);
-                const blackLosses = reviewMoveResults.filter(x=>x.move.color==='b').map(x=>x.lossCp);
-                const averageAccuracy = arr => arr.length ? arr.reduce((sum,loss)=>sum+accuracyFromLoss(loss),0)/arr.length : 100;
-                document.getElementById('white-accuracy-score').textContent = `${averageAccuracy(whiteLosses).toFixed(1)}%`;
-                document.getElementById('black-accuracy-score').textContent = `${averageAccuracy(blackLosses).toFixed(1)}%`;
-                const counts = {};
-                reviewMoveResults.forEach(r=>{ counts[r.classification.key]=(counts[r.classification.key]||0)+1; });
-                const labelMap = {best:'Tốt nhất',excellent:'Xuất sắc',good:'Tốt',inaccuracy:'Chưa chính xác',mistake:'Sai lầm',blunder:'Blunder'};
-                const sumEl = document.getElementById('review-classification-summary'); sumEl.innerHTML='';
-                Object.keys(labelMap).forEach(key=>{
-                    const span=document.createElement('span'); span.className='review-stat';
-                    span.textContent=`${labelMap[key]}: ${counts[key]||0}`; sumEl.appendChild(span);
-                });
-                document.getElementById('review-analysis-progress').textContent = `Xong · ${positions.length} vị trí`;
-                reviewCurrentIdx = Math.min(reviewCurrentIdx, reviewHistory.length);
-                renderReviewBoard();
-                showToast('Phân tích VtiChess hoàn tất. Độ chính xác là ước tính từ mức mất điểm, không phải điểm CAPS chính thức của Chess.com.');
-            } catch (error) {
-                console.error(error);
-                document.getElementById('review-analysis-progress').textContent = 'Lỗi engine';
-                showToast('Không chạy được engine VtiChess nội bộ. Hãy tải lại trang và kiểm tra các tệp engine/vti-engine.worker.js, vendor/chess.js.');
-            } finally {
-                reviewAnalysisRunning=false;
-                if (button) { button.disabled=false; button.innerHTML='<i class="fa-solid fa-wand-magic-sparkles"></i> Phân Tích Toàn Bộ Ván'; }
-            }
-        }
-
-        // ================= TAB 3: LIVE STOCKFISH ANALYSIS BOARD =================
-        let analysisChess = new Chess();
-        let analysisSelectedSquare = null;
-        let analysisPossibleMoves = [];
-        let analysisRequestedFen = '';
-        let analysisLastResult = null;
-
-        window.renderAnalysisBoard = function() {
-            const boardEl = document.getElementById('analysis-chessboard');
-            boardEl.innerHTML = '';
-            boardEl.style.position = 'relative';
-            const board = analysisChess.board();
-            for (let r=0;r<8;r++) {
-                for (let c=0;c<8;c++) {
-                    const sqId = String.fromCharCode(97+c)+(8-r);
-                    const piece = board[r][c];
-                    const sqDiv = document.createElement('div');
-                    sqDiv.className = `w-full h-full flex items-center justify-center relative cursor-pointer ${(r+c)%2===0 ? 'sq-light' : 'sq-dark'}`;
-                    sqDiv.dataset.square = sqId;
-                    if (c === 0) sqDiv.dataset.rankLabel = String(8 - r);
-                    if (r === 7) sqDiv.dataset.fileLabel = String.fromCharCode(97 + c);
-                    if (analysisSelectedSquare===sqId) sqDiv.classList.add('analysis-square-selected');
-                    if (analysisPossibleMoves.includes(sqId)) sqDiv.classList.add(piece ? 'analysis-square-capture' : 'analysis-square-legal');
-                    if (piece) {
-                        const img = document.createElement('img'); img.className='piece-img';
-                        img.alt=`${piece.color==='w'?'Trắng':'Đen'} ${piece.type}`; img.draggable=false; img.src=getPiecePngUrl(piece);
-                        img.onerror=function(){this.style.display='none';}; sqDiv.appendChild(img);
-                    }
-                    sqDiv.addEventListener('click',()=>handleAnalysisSquareClick(sqId));
-                    boardEl.appendChild(sqDiv);
-                }
-            }
-            drawBestMoveArrow();
-            updateAnalysisEvaluation();
-        };
-
-        function handleAnalysisSquareClick(square) {
-            if (!analysisSelectedSquare) {
-                const piece = analysisChess.get(square);
-                if (piece && piece.color===analysisChess.turn()) {
-                    analysisSelectedSquare=square;
-                    analysisPossibleMoves=analysisChess.moves({square,verbose:true}).map(m=>m.to);
-                    renderAnalysisBoard();
-                }
-                return;
-            }
-            if (analysisSelectedSquare===square) {
-                analysisSelectedSquare=null; analysisPossibleMoves=[]; renderAnalysisBoard(); return;
-            }
-            const move=analysisChess.move({from:analysisSelectedSquare,to:square,promotion:'q'});
-            if (move) {
-                analysisSelectedSquare=null; analysisPossibleMoves=[]; analysisLastResult=null; analysisRequestedFen='';
-                renderAnalysisBoard();
-            } else {
-                const piece=analysisChess.get(square);
-                if (piece && piece.color===analysisChess.turn()) {
-                    analysisSelectedSquare=square;
-                    analysisPossibleMoves=analysisChess.moves({square,verbose:true}).map(m=>m.to);
-                } else { analysisSelectedSquare=null; analysisPossibleMoves=[]; }
-                renderAnalysisBoard();
-            }
-        }
-
-        function updateAnalysisEvalBar(whiteEval) {
-            const val=Math.max(-10,Math.min(10,whiteEval));
-            const whitePct=50+val*5;
-            document.getElementById('analysis-eval-white').style.height=`${whitePct}%`;
-            document.getElementById('analysis-eval-black').style.height=`${100-whitePct}%`;
-        }
-
-        async function updateAnalysisEvaluation(force=false) {
-            const fen=analysisChess.fen();
-            if (!force && analysisRequestedFen===fen) return;
-            analysisRequestedFen=fen;
-            document.getElementById('analysis-engine-meta').textContent='VtiChess đang phân tích…';
-            document.getElementById('analysis-best-line').textContent='Đang tính biến tốt nhất…';
-            try {
-                const result=await analyzeFen(fen,12,3,{timeMs:700});
-                if (analysisChess.fen()!==fen) return;
-                if (!result || !result.lines || !result.lines.length || !result.bestmove || result.bestmove==='(none)') {
-                    throw new Error('VtiChess không trả về nước đi/biến chính cho vị trí này.');
-                }
-                analysisLastResult=result;
-                const line=primaryLine(result);
-                const whiteEval=scoreInWhitePerspective(fen,line);
-                updateAnalysisEvalBar(whiteEval);
-                document.getElementById('analysis-eval-badge').textContent=formatWhiteScore(fen,line);
-                document.getElementById('analysis-best-line').textContent=uciLineToSan(fen,line.pv,12);
-                document.getElementById('analysis-engine-meta').textContent=`VtiChess JS · depth ${line.depth || result.depth} · tìm kiếm cục bộ`;
-                const linesEl=document.getElementById('analysis-lines'); linesEl.innerHTML='';
-                result.lines.forEach((pv,index)=>{
-                    const row=document.createElement('div'); row.className='engine-line-row';
-                    const rank=document.createElement('span'); rank.className='line-rank'; rank.textContent=`${index+1}.`;
-                    const score=document.createElement('span'); score.className='line-score'; score.textContent=formatScore(pv);
-                    const text=document.createElement('span'); text.className='line-pv'; text.textContent=uciLineToSan(fen,pv.pv,12);
-                    row.append(rank,score,text); linesEl.appendChild(row);
-                });
-                drawBestMoveArrow();
-            } catch (error) {
-                if (analysisRequestedFen===fen) analysisRequestedFen='';
-                analysisLastResult=null;
-                const meta=document.getElementById('analysis-engine-meta');
-                const best=document.getElementById('analysis-best-line');
-                const lines=document.getElementById('analysis-lines');
-                if (meta) meta.textContent='Engine lỗi · bấm “Phân Tích / Thử Lại”';
-                if (best) best.textContent=(error && error.message) ? error.message : 'Không nhận được phân tích từ VtiChess.';
-                if (lines) lines.innerHTML='<div class="text-[11px] text-chess-textMuted">Bấm trạng thái VtiChess để khởi tạo lại engine cục bộ.</div>';
-                drawBestMoveArrow();
-            }
-        }
-
-        function drawBestMoveArrow() {
-            const boardEl=document.getElementById('analysis-chessboard');
-            const old=boardEl.querySelector('svg.bestmove-arrow-layer');
-            if (old) old.remove();
-            if (!analysisLastResult || !analysisLastResult.bestmove || analysisLastResult.bestmove==='(none)') return;
-            const move=parseUciMove(analysisLastResult.bestmove);
-            if (!move) return;
-            const xy=sq=>({x:((sq.charCodeAt(0)-97)+0.5)*12.5,y:(8-Number(sq[1])+0.5)*12.5});
-            const a=xy(move.from),b=xy(move.to);
-            const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
-            svg.setAttribute('class','bestmove-arrow-layer'); svg.setAttribute('viewBox','0 0 100 100');
-            svg.style.cssText='position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible;z-index:15;';
-            svg.innerHTML=`<defs><marker id="best-arrow-head" markerWidth="5" markerHeight="5" refX="3.5" refY="2.5" orient="auto"><path d="M0,0 L5,2.5 L0,5 Z" fill="#81b64c" fill-opacity=".9"></path></marker></defs><line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" stroke="#81b64c" stroke-opacity=".78" stroke-width="1.6" stroke-linecap="round" marker-end="url(#best-arrow-head)"/>`;
-            boardEl.appendChild(svg);
-        }
-
-        function resetAnalysisBoard() {
-            analysisChess.reset(); analysisSelectedSquare=null; analysisPossibleMoves=[]; analysisLastResult=null; analysisRequestedFen='';
-            renderAnalysisBoard(); showToast('Đã đặt lại bàn phân tích.');
-        }
-
-        function copyFEN() {
-            const fen=analysisChess.fen();
-            if (navigator.clipboard && navigator.clipboard.writeText) {
-                navigator.clipboard.writeText(fen).then(()=>showToast('Đã sao chép FEN!')).catch(()=>copyTextFallback(fen));
-            } else copyTextFallback(fen);
-        }
-        function copyTextFallback(text) {
-            const temp=document.createElement('textarea'); temp.value=text; document.body.appendChild(temp); temp.select();
-            try { document.execCommand('copy'); showToast('Đã sao chép FEN!'); } catch (_) { showToast('Không tự sao chép được; FEN: '+text); }
-            document.body.removeChild(temp);
-        }
-
-        // ================= TAB 4: SETTINGS & THEMES =================
-        function setBoardTheme(themeName) {
-            ['chessboard', 'review-chessboard', 'analysis-chessboard'].forEach(id => {
-                const el = document.getElementById(id);
-                if (el) {
-                    el.classList.remove('theme-green', 'theme-wood', 'theme-glass', 'theme-dark');
-                    el.classList.add(themeName);
-                }
-            });
-            showToast("Đã cập nhật chủ đề bàn cờ mới!");
-        }
-
-        document.addEventListener('keydown', function(event) {
-            if (event.target && ['INPUT','TEXTAREA'].includes(event.target.tagName)) return;
-            if (document.getElementById('view-review') && !document.getElementById('view-review').classList.contains('hidden')) {
-                if (event.key === 'ArrowLeft') reviewStep(-1);
-                if (event.key === 'ArrowRight') reviewStep(1);
-            }
-        });
-
-        // --- INIT APP ---
-        window.onload = function() {
-            renderPlayBoard();
-            updateBotElo(1500);
-            setEngineStatus('Stockfish 18.0.8 · đang khởi tạo', 'loading', 'Đang nạp Stockfish. Chế độ nhiều luồng sẽ dùng khi trình duyệt hỗ trợ; nếu không, phân tích toàn ván có thể chia cho các worker CPU.');
-            document.getElementById('live-textbook-comment').textContent =
-                'VtiChess phân tích cục bộ trên CPU. GPU chưa được dùng bởi Stockfish; có thể dùng nhiều worker CPU để phân tích các vị trí độc lập.';
-            ensureLocalEngine().catch(error => {
-                document.getElementById('live-textbook-comment').textContent =
-                    'Engine khởi tạo lỗi: ' + (error.message || error);
-            });
-        };
-    </script>
+  </div>
+
+  <div class="footer"><strong style="color:#e6f0e8">Cách hoạt động:</strong> GitHub Pages chỉ lưu và phát mã giao diện. Host là máy người tạo phòng và phải giữ trang mở trong suốt ván. PeerJS Cloud giúp hai máy tìm thấy nhau; sau đó dữ liệu đi trực tiếp qua WebRTC trừ khi mạng cần relay. Máy người chơi không tự động trở thành server công khai cho mọi người ngoài phòng, và host đóng trang thì ván hiện tại kết thúc. <br><strong style="color:#e6f0e8">Luật biến thể:</strong> bàn 12×12 ba phía, quân đi theo quy tắc hình học cờ vua, không có nhập thành hoặc bắt tốt qua đường; tốt tự phong hậu ở cạnh đối diện. Đây là luật biến thể riêng của VtiChess.</div>
+</div>
+
+<script>
+(function(){
+'use strict';
+const ORDER=['north','east','west'];
+const SEAT_NAMES={north:'Trắng · Vương quốc phía trên',east:'Xanh · Vương quốc bên phải',west:'Đỏ · Vương quốc bên trái'};
+const SEAT_SHORT={north:'Trắng',east:'Xanh',west:'Đỏ'};
+const SEAT_CLASS={north:'north',east:'east',west:'west'};
+const TYPE_NAMES={k:'Vua',q:'Hậu',r:'Xe',b:'Tượng',n:'Mã',p:'Tốt'};
+const PIECES={k:'♚',q:'♛',r:'♜',b:'♝',n:'♞',p:'♟'};
+const BACK=['r','n','b','q','k','b','n','r'];
+const FILES='ABCDEFGHIJKL';
+let peer=null,hostConnection=null,roomCode='',mySeat=null,isHost=false,game=null;
+let hostConnections=new Map(),seatByPeerId=new Map(),selected=null,selectedMoves=[];
+let peerLibraryPromise=null;
+
+const $=id=>document.getElementById(id);
+const boardEl=$('board');
+function safeName(value){const name=String(value||'').trim().replace(/[<>]/g,'').slice(0,20);return name||'Người chơi';}
+function status(message,error){const box=$('network-status');box.classList.toggle('error',!!error);box.replaceChildren();const strong=document.createElement('strong');strong.textContent=error?'Kết nối gặp lỗi':'Trạng thái kết nối';const span=document.createElement('span');span.textContent=message;box.append(strong,span);}
+function playerName(seat){return game&&game.players[seat]?game.players[seat].name:SEAT_SHORT[seat];}
+function isActiveSquare(r,c){return !((r<2||r>9)&&(c<2||c>9));}
+function makeBoard(){
+ const b=Array.from({length:12},()=>Array(12).fill(null));
+ for(let i=0;i<8;i++){
+  const c=i+2,r=i+2;
+  b[0][c]={color:'north',type:BACK[i]};b[1][c]={color:'north',type:'p'};
+  b[r][0]={color:'west',type:BACK[i]};b[r][1]={color:'west',type:'p'};
+  b[r][11]={color:'east',type:BACK[7-i]};b[r][10]={color:'east',type:'p'};
+ }
+ return b;
+}
+function makeGame(name,peerId){
+ return {board:makeBoard(),turn:'north',started:false,over:false,winner:null,draw:false,moves:0,lastMove:null,players:{
+  north:{name:name,peerId:peerId||'',online:true,active:true},
+  east:{name:'Chờ người chơi 2',peerId:'',online:false,active:false},
+  west:{name:'Chờ người chơi 3',peerId:'',online:false,active:false}
+ },events:[],chat:[],version:1};
+}
+function cloneGame(value){return JSON.parse(JSON.stringify(value));}
+function squareName(r,c){return FILES[c]+String(12-r);}
+function inside(r,c){return r>=0&&r<12&&c>=0&&c<12&&isActiveSquare(r,c);}
+function pawnDirection(color){if(color==='north')return [1,0];if(color==='east')return [0,-1];return [0,1];}
+function pathIsClear(board,r,c,tr,tc){
+ const dr=Math.sign(tr-r),dc=Math.sign(tc-c);let rr=r+dr,cc=c+dc;
+ while(rr!==tr||cc!==tc){if(!board[rr]||board[rr][cc])return false;rr+=dr;cc+=dc;}
+ return true;
+}
+function isSquareAttacked(board,tr,tc,byColor){
+ for(let r=0;r<12;r++)for(let c=0;c<12;c++){
+  const p=board[r][c];if(!p||p.color!==byColor)continue;
+  const dr=tr-r,dc=tc-c,ar=Math.abs(dr),ac=Math.abs(dc);
+  if(p.type==='p'){
+   if(p.color==='north'&&dr===1&&ac===1)return true;
+   if(p.color==='east'&&dc===-1&&ar===1)return true;
+   if(p.color==='west'&&dc===1&&ar===1)return true;
+   continue;
+  }
+  if(p.type==='n'&&((ar===2&&ac===1)||(ar===1&&ac===2)))return true;
+  if(p.type==='k'&&Math.max(ar,ac)===1)return true;
+  const diagonal=ar===ac&&ar>0,straight=(dr===0&&dc!==0)||(dc===0&&dr!==0);
+  if(p.type==='b'&&!diagonal)continue;
+  if(p.type==='r'&&!straight)continue;
+  if(p.type==='q'&&!diagonal&&!straight)continue;
+  if((p.type==='b'||p.type==='r'||p.type==='q')&&(diagonal||straight)&&pathIsClear(board,r,c,tr,tc))return true;
+ }
+ return false;
+}
+function isInCheck(board,color){
+ let king=null;
+ for(let r=0;r<12;r++)for(let c=0;c<12;c++){const p=board[r][c];if(p&&p.color===color&&p.type==='k')king={r,c};}
+ if(!king)return false;
+ for(let r=0;r<12;r++)for(let c=0;c<12;c++){const p=board[r][c];if(p&&p.color!==color&&isSquareAttacked(board,king.r,king.c,p.color))return true;}
+ return false;
+}
+function pseudoMoves(board,r,c){
+ const p=board[r][c];if(!p)return [];
+ const out=[];
+ function add(tr,tc){if(!inside(tr,tc))return;const target=board[tr][tc];if(target&&target.color===p.color)return;if(target&&target.type==='k')return;out.push({r:tr,c:tc});}
+ if(p.type==='p'){
+  const v=pawnDirection(p.color),fr=r+v[0],fc=c+v[1];
+  if(inside(fr,fc)&&!board[fr][fc]){
+   out.push({r:fr,c:fc});
+   const home=(p.color==='north'&&r===1)||(p.color==='west'&&c===1)||(p.color==='east'&&c===10);
+   const dfr=fr+v[0],dfc=fc+v[1];if(home&&inside(dfr,dfc)&&!board[dfr][dfc])out.push({r:dfr,c:dfc});
+  }
+  const captures=p.color==='north'?[[r+1,c-1],[r+1,c+1]]:p.color==='east'?[[r-1,c-1],[r+1,c-1]]:[[r-1,c+1],[r+1,c+1]];
+  for(const t of captures){if(!inside(t[0],t[1]))continue;const target=board[t[0]][t[1]];if(target&&target.color!==p.color&&target.type!=='k')out.push({r:t[0],c:t[1]});}
+  return out;
+ }
+ if(p.type==='n'){
+  const jumps=[[-2,-1],[-2,1],[-1,-2],[-1,2],[1,-2],[1,2],[2,-1],[2,1]];
+  for(const d of jumps)add(r+d[0],c+d[1]);return out;
+ }
+ const dirs=[];
+ if(p.type==='r'||p.type==='q'||p.type==='k')dirs.push([-1,0],[1,0],[0,-1],[0,1]);
+ if(p.type==='b'||p.type==='q'||p.type==='k')dirs.push([-1,-1],[-1,1],[1,-1],[1,1]);
+ for(const d of dirs){
+  let tr=r+d[0],tc=c+d[1];
+  while(inside(tr,tc)){
+   const target=board[tr][tc];
+   if(target&&target.color===p.color)break;
+   if(target&&target.type==='k')break;
+   out.push({r:tr,c:tc});
+   if(target)break;
+   if(p.type==='k')break;
+   tr+=d[0];tc+=d[1];
+  }
+ }
+ return out;
+}
+function legalMovesForPiece(board,r,c){
+ const p=board[r][c];if(!p)return [];
+ const moves=pseudoMoves(board,r,c),legal=[];
+ for(const m of moves){
+  const source=board[r][c],target=board[m.r][m.c];
+  board[r][c]=null;board[m.r][m.c]=source;
+  const safe=!isInCheck(board,p.color);
+  board[r][c]=source;board[m.r][m.c]=target;
+  if(safe)legal.push(m);
+ }
+ return legal;
+}
+function legalMovesForColor(board,color){
+ const all=[];
+ for(let r=0;r<12;r++)for(let c=0;c<12;c++){const p=board[r][c];if(p&&p.color===color){for(const m of legalMovesForPiece(board,r,c))all.push({from:{r,c},to:m});}}
+ return all;
+}
+function activeSeats(){return ORDER.filter(s=>game.players[s]&&game.players[s].active);}
+function eliminateSeat(seat,reason){
+ if(!game.players[seat]||!game.players[seat].active)return;
+ game.players[seat].active=false;
+ for(let r=0;r<12;r++)for(let c=0;c<12;c++)if(game.board[r][c]&&game.board[r][c].color===seat)game.board[r][c]=null;
+ game.events.unshift(playerName(seat)+' bị loại: '+reason+'.');game.events=game.events.slice(0,14);
+}
+function finishIfWinner(){
+ const survivors=activeSeats();
+ if(survivors.length<=1){game.over=true;game.winner=survivors[0]||null;game.draw=!game.winner;game.events.unshift(game.winner?playerName(game.winner)+' chiến thắng!':'Ván đấu kết thúc hòa.');return true;}
+ return false;
+}
+function advanceTurnAfter(seat){
+ let start=ORDER.indexOf(seat);if(start<0)start=0;
+ for(let step=1;step<=3;step++){
+  const candidate=ORDER[(start+step)%3];if(!game.players[candidate]||!game.players[candidate].active)continue;
+  const available=legalMovesForColor(game.board,candidate);
+  if(!available.length){
+   if(isInCheck(game.board,candidate)){
+    eliminateSeat(candidate,'chiếu bí');if(finishIfWinner())return;
+    start=ORDER.indexOf(candidate);step=0;continue;
+   }
+   game.events.unshift(playerName(candidate)+' hết nước hợp lệ; bỏ lượt theo luật biến thể.');
+   continue;
+  }
+  game.turn=candidate;return;
+ }
+ if(!finishIfWinner()){game.over=true;game.draw=true;game.winner=null;game.events.unshift('Không còn người chơi nào có nước hợp lệ.');}
+}
+function performMove(seat,from,to){
+ if(!game||!game.started||game.over)return {ok:false,reason:'Ván chưa bắt đầu hoặc đã kết thúc.'};
+ if(seat!==game.turn)return {ok:false,reason:'Chưa đến lượt của bạn.'};
+ if(!game.players[seat]||!game.players[seat].active)return {ok:false,reason:'Vương quốc của bạn đã bị loại.'};
+ const r=Number(from&&from.r),c=Number(from&&from.c),tr=Number(to&&to.r),tc=Number(to&&to.c);
+ if(!inside(r,c)||!inside(tr,tc))return {ok:false,reason:'Ô cờ không hợp lệ.'};
+ const p=game.board[r][c];if(!p||p.color!==seat)return {ok:false,reason:'Chỉ được đi quân của vương quốc mình.'};
+ const legal=legalMovesForPiece(game.board,r,c);
+ if(!legal.some(m=>m.r===tr&&m.c===tc))return {ok:false,reason:'Nước đi không hợp lệ hoặc khiến vua bị chiếu.'};
+ const captured=game.board[tr][tc];
+ game.board[r][c]=null;
+ const moving={color:p.color,type:p.type};
+ const promotion=(p.type==='p'&&((seat==='north'&&tr===11)||(seat==='east'&&tc===0)||(seat==='west'&&tc===11)));
+ if(promotion)moving.type='q';
+ game.board[tr][tc]=moving;
+ game.moves++;game.lastMove={from:{r,c},to:{r:tr,c:tc}};
+ game.events.unshift(playerName(seat)+' · '+TYPE_NAMES[p.type]+' '+squareName(r,c)+' → '+squareName(tr,tc)+(captured?' · ăn '+TYPE_NAMES[captured.type]:'')+(promotion?' · phong Hậu':''));
+ game.events=game.events.slice(0,14);
+ advanceTurnAfter(seat);
+ game.version++;
+ return {ok:true};
+}
+function addChat(seat,text){
+ const msg=String(text||'').trim().replace(/[\u0000-\u001f]/g,' ').slice(0,180);if(!msg)return;
+ game.chat.push({seat,name:playerName(seat),text:msg,at:Date.now()});game.chat=game.chat.slice(-35);broadcastState();
+}
+function sendConnection(conn,payload){try{if(conn&&conn.open)conn.send(payload);return true;}catch(e){return false;}}
+function broadcastState(){
+ if(!game)return;game.version++;
+ const snapshot={type:'state',state:cloneGame(game)};
+ for(const record of hostConnections.values())sendConnection(record.conn,snapshot);
+ render();
+}
+function playerCount(){return game?ORDER.filter(s=>game.players[s]&&game.players[s].online).length:0;}
+function seatAvailable(){return ['east','west'].find(s=>!game.players[s].online&&!game.players[s].active)||['east','west'].find(s=>!game.players[s].online)||null;}
+function hostConnectionReceived(conn){
+ conn.on('data',message=>{
+  if(!message||typeof message!=='object')return;
+  if(message.type==='join'){
+   const prior=hostConnections.get(conn.peer);if(prior){sendConnection(conn,{type:'welcome',seat:prior.seat,roomId:roomCode,state:cloneGame(game)});return;}
+   if(game.started){sendConnection(conn,{type:'error',message:'Ván đã bắt đầu hoặc phòng đã đủ người.'});return;}
+   let seat=seatByPeerId.get(conn.peer);
+   if(!seat||game.players[seat].online){seat=seatAvailable();}
+   if(!seat){sendConnection(conn,{type:'error',message:'Phòng chỉ có 3 chỗ và đã đủ người.'});return;}
+   seatByPeerId.set(conn.peer,seat);
+   game.players[seat]={name:safeName(message.name),peerId:conn.peer,online:true,active:true};
+   hostConnections.set(conn.peer,{conn,seat});
+   if(ORDER.every(s=>game.players[s].online)){
+    game.started=true;game.turn='north';game.events.unshift('Đủ 3 người chơi! Ván bắt đầu.');game.events=game.events.slice(0,14);
+   }
+   sendConnection(conn,{type:'welcome',seat:seat,roomId:roomCode,state:cloneGame(game)});
+   broadcastState();status('Phòng '+roomCode+' · '+playerCount()+'/3 người đã kết nối.',false);
+   return;
+  }
+  const record=hostConnections.get(conn.peer);if(!record)return;
+  if(message.type==='move'){
+   const result=performMove(record.seat,message.from,message.to);
+   if(!result.ok)sendConnection(conn,{type:'notice',message:result.reason});
+   broadcastState();return;
+  }
+  if(message.type==='chat')addChat(record.seat,message.text);
+ });
+ conn.on('close',()=>{
+  const record=hostConnections.get(conn.peer);if(!record)return;
+  hostConnections.delete(conn.peer);
+  const seat=record.seat;
+  if(game&&game.players[seat]){
+   game.players[seat].online=false;
+   if(game.started&&!game.over){
+    const wasTurn=game.turn===seat;
+    eliminateSeat(seat,'mất kết nối');
+    if(!finishIfWinner()&&wasTurn)advanceTurnAfter(seat);
+   }else{
+    game.players[seat].active=false;game.players[seat].name='Chờ người chơi';
+   }
+   broadcastState();
+   status('Người chơi '+SEAT_SHORT[seat]+' đã ngắt kết nối.',true);
+  }
+ });
+ conn.on('error',err=>status('Kết nối người chơi bị lỗi: '+(err&&err.message||'không rõ nguyên nhân'),true));
+}
+function hostHandleLocalMove(from,to){
+ const result=performMove('north',from,to);if(!result.ok)status(result.reason,false);broadcastState();
+}
+function guestHandleMessage(message){
+ if(!message||typeof message!=='object')return;
+ if(message.type==='welcome'){mySeat=message.seat;roomCode=message.roomId||roomCode;game=message.state;status('Đã vào phòng với vai '+SEAT_SHORT[mySeat]+'.',false);render();return;}
+ if(message.type==='state'){game=message.state;render();return;}
+ if(message.type==='error'){status(message.message||'Không thể vào phòng.',true);return;}
+ if(message.type==='notice'){status(message.message||'Yêu cầu bị từ chối.',true);}
+}
+function peerErrorText(err){
+ const code=err&&err.type||'';const detail=err&&err.message?err.message:'';
+ if(code==='peer-unavailable')return 'Không tìm thấy phòng. Kiểm tra mã phòng và chắc chắn host vẫn mở trang.';
+ if(code==='network'||code==='socket-error'||code==='socket-closed')return 'Không kết nối được dịch vụ tín hiệu PeerJS. Kiểm tra mạng hoặc thử lại sau.';
+ if(code==='browser-incompatible')return 'Trình duyệt này không hỗ trợ WebRTC DataChannel.';
+ if(code==='unavailable-id')return 'Mã Peer bị trùng, hãy tạo phòng lại.';
+ return detail||'Lỗi kết nối PeerJS: '+code;
+}
+function attachPeerErrorHandlers(p){
+ p.on('error',err=>status(peerErrorText(err),true));
+ p.on('disconnected',()=>status('Mất kết nối dịch vụ tín hiệu. Các kết nối P2P đang mở có thể vẫn hoạt động.',true));
+}
+function createPeerAfterLoading(){
+ return new Promise((resolve,reject)=>{
+  let finished=false;let p;
+  try{p=new window.Peer(undefined,{debug:1,config:{iceServers:[{urls:'stun:stun.l.google.com:19302'}]}});}
+  catch(e){reject(e);return;}
+  const timer=setTimeout(()=>{if(!finished){finished=true;try{p.destroy();}catch(_){}reject(new Error('Hết thời gian kết nối dịch vụ PeerJS.'));}},18000);
+  p.on('open',id=>{if(finished)return;finished=true;clearTimeout(timer);attachPeerErrorHandlers(p);resolve({peer:p,id:id});});
+  p.on('error',err=>{if(!finished){finished=true;clearTimeout(timer);try{p.destroy();}catch(_){}reject(new Error(peerErrorText(err)));}});
+ });
+}
+function loadPeerJS(){
+ if(window.Peer)return Promise.resolve();
+ if(peerLibraryPromise)return peerLibraryPromise;
+ peerLibraryPromise=new Promise((resolve,reject)=>{
+  const sources=['https://cdn.jsdelivr.net/npm/peerjs@1.5.5/dist/peerjs.min.js','https://unpkg.com/peerjs@1.5.5/dist/peerjs.min.js'];let index=0;
+  function tryNext(){
+   if(window.Peer){resolve();return;}
+   if(index>=sources.length){reject(new Error('Không tải được thư viện PeerJS từ hai CDN.'));return;}
+   const script=document.createElement('script');script.src=sources[index++];script.async=true;
+   script.onload=()=>window.Peer?resolve():tryNext();
+   script.onerror=()=>tryNext();document.head.appendChild(script);
+  }tryNext();
+ }).catch(error=>{peerLibraryPromise=null;throw error;});
+ return peerLibraryPromise;
+}
+async function createRoom(){
+ $('create-room').disabled=true;status('Đang tải thư viện kết nối và tạo phòng…',false);
+ try{
+  await loadPeerJS();
+  const opened=await createPeerAfterLoading();peer=opened.peer;roomCode=opened.id;isHost=true;mySeat='north';hostConnections=new Map();seatByPeerId=new Map();
+  game=makeGame(safeName($('player-name').value),roomCode);
+  peer.on('connection',hostConnectionReceived);
+  $('room-code').textContent=roomCode;$('copy-invite').disabled=false;$('new-game').classList.remove('hidden');
+  status('Phòng đã tạo. Gửi link mời cho 2 người còn lại.',false);
+  render();
+ }catch(error){status(error.message||String(error),true);}
+ finally{$('create-room').disabled=false;}
+}
+async function joinRoom(){
+ const code=$('room-code-input').value.trim();if(!code){status('Hãy nhập mã phòng của host.',true);return;}
+ $('join-room').disabled=true;status('Đang kết nối tới phòng '+code+'…',false);
+ try{
+  await loadPeerJS();const opened=await createPeerAfterLoading();peer=opened.peer;roomCode=code;isHost=false;mySeat=null;game=null;hostConnection=null;
+  const timer=setTimeout(()=>{if(!mySeat)status('Chưa nhận phản hồi từ host. Kiểm tra host còn mở phòng hay không.',true);},20000);
+  hostConnection=peer.connect(code,{reliable:true,serialization:'json'});
+  hostConnection.on('open',()=>{sendConnection(hostConnection,{type:'join',name:safeName($('player-name').value)});status('Đã nối được host; đang xin chỗ ngồi…',false);});
+  hostConnection.on('data',guestHandleMessage);
+  hostConnection.on('close',()=>{clearTimeout(timer);status('Đã mất kết nối tới host. Ván sẽ không tiếp tục nếu host đóng trang.',true);});
+  hostConnection.on('error',err=>status('Kết nối phòng lỗi: '+(err&&err.message||'không rõ nguyên nhân'),true));
+  $('room-code').textContent=code;
+ }catch(error){status(error.message||String(error),true);}
+ finally{$('join-room').disabled=false;}
+}
+function copyInvite(){
+ if(!roomCode)return;
+ const invite=location.origin+location.pathname+'?room='+encodeURIComponent(roomCode);
+ if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(invite).then(()=>status('Đã sao chép link mời. Gửi link này cho hai người còn lại.',false)).catch(()=>copyFallback(invite));
+ else copyFallback(invite);
+}
+function copyFallback(text){
+ const input=document.createElement('textarea');input.value=text;document.body.appendChild(input);input.select();
+ let ok=false;try{ok=document.execCommand('copy');}catch(_){}input.remove();
+ status(ok?'Đã sao chép link mời.':'Không sao chép được tự động. Link: '+text,!ok);
+}
+function newGame(){
+ if(!isHost||!peer||peer.destroyed)return;
+ const online=Object.values(game.players).map(p=>({name:p.name,peerId:p.peerId,online:p.online,active:p.online}));
+ if(!online.every(p=>p.online)){status('Cần đủ 3 người đang kết nối để mở ván mới.',true);return;}
+ const oldPlayers=game.players;
+ game=makeGame(oldPlayers.north.name,roomCode);
+ ['east','west'].forEach(seat=>{game.players[seat]=oldPlayers[seat];game.players[seat].active=true;game.players[seat].online=true;});
+ game.started=true;game.events.unshift('Ván mới bắt đầu.');broadcastState();status('Ván mới đã bắt đầu.',false);
+}
+function clickSquare(r,c){
+ if(!game||!game.board)return;
+ if(!game.started){status('Đợi đủ 3 người vào phòng trước khi đi quân.',false);return;}
+ if(game.over){status('Ván đã kết thúc. Host có thể tạo ván mới.',false);return;}
+ if(mySeat!==game.turn){status('Đang tới lượt '+SEAT_SHORT[game.turn]+'.',false);return;}
+ const chosen=game.board[r][c];
+ if(selected&&selectedMoves.some(m=>m.r===r&&m.c===c)){
+  const from={r:selected.r,c:selected.c},to={r,c};selected=null;selectedMoves=[];
+  if(isHost)hostHandleLocalMove(from,to);
+  else if(hostConnection&&hostConnection.open){sendConnection(hostConnection,{type:'move',from,to});status('Đã gửi yêu cầu nước đi cho host…',false);render();}
+  else status('Chưa kết nối host.',true);
+  return;
+ }
+ if(chosen&&chosen.color===mySeat){
+  selected={r,c};selectedMoves=legalMovesForPiece(game.board,r,c);render();return;
+ }
+ selected=null;selectedMoves=[];render();
+}
+function renderBoard(){
+ boardEl.replaceChildren();if(!game||!game.board){boardEl.innerHTML='<div class="small-muted" style="padding:15px">Tạo hoặc tham gia phòng để xem bàn cờ.</div>';return;}
+ const last=game.lastMove;
+ for(let r=0;r<12;r++)for(let c=0;c<12;c++){
+  if(!isActiveSquare(r,c)){const off=document.createElement('div');off.className='offboard';boardEl.appendChild(off);continue;}
+  const btn=document.createElement('button');btn.type='button';btn.className='sq '+(((r+c)%2===0)?'light':'dark');
+  if(selected&&selected.r===r&&selected.c===c)btn.classList.add('selected');
+  const target=selectedMoves.find(m=>m.r===r&&m.c===c);
+  if(target){btn.classList.add('target');if(game.board[r][c])btn.classList.add('capture');}
+  if(last&&((last.from.r===r&&last.from.c===c)||(last.to.r===r&&last.to.c===c)))btn.classList.add('last');
+  const firstCol=(r<2||r>9)?2:0;
+  let label='';if(c===firstCol)label+=String(12-r);if(r===9)label+=FILES[c];
+  if(label){const coord=document.createElement('span');coord.className='coord';coord.textContent=label;btn.appendChild(coord);}
+  const p=game.board[r][c];
+  if(p){const piece=document.createElement('span');piece.className='piece '+SEAT_CLASS[p.color];piece.textContent=PIECES[p.type];piece.title=SEAT_SHORT[p.color]+' '+TYPE_NAMES[p.type];btn.appendChild(piece);}
+  btn.setAttribute('aria-label',squareName(r,c)+(p?' '+SEAT_SHORT[p.color]+' '+TYPE_NAMES[p.type]:''));
+  btn.addEventListener('click',()=>clickSquare(r,c));boardEl.appendChild(btn);
+ }
+}
+function renderPlayers(){
+ const box=$('players');box.replaceChildren();
+ if(!game){box.textContent='Tạo phòng để sắp xếp người chơi.';return;}
+ for(const seat of ORDER){
+  const p=game.players[seat]||{name:'Chờ người chơi',online:false,active:false};
+  const card=document.createElement('div');card.className='seat'+(game.started&&!game.over&&game.turn===seat?' current':'');
+  const icon=document.createElement('div');icon.className='seat-color '+SEAT_CLASS[seat];icon.textContent=seat==='north'?'♔':seat==='east'?'♚':'♕';
+  const info=document.createElement('div');info.className='seat-info';const name=document.createElement('div');name.className='seat-name';name.textContent=p.name||'Chờ người chơi';
+  const meta=document.createElement('div');meta.className='seat-meta';meta.textContent=SEAT_NAMES[seat]+(p.active?'':' · chưa vào ván');
+  info.append(name,meta);const tag=document.createElement('span');tag.className='seat-state'+(p.online?' online':p.active?' out':'');tag.textContent=p.online?'TRỰC TUYẾN':p.active?'MẤT KẾT NỐI':'ĐANG CHỜ';
+  card.append(icon,info,tag);box.appendChild(card);
+ }
+ $('online-count').textContent=playerCount()+' / 3';
+}
+function renderLog(){
+ const box=$('move-log');box.replaceChildren();
+ if(!game||!game.events.length){const empty=document.createElement('div');empty.className='small-muted';empty.textContent='Các nước đi sẽ xuất hiện ở đây.';box.appendChild(empty);return;}
+ game.events.slice(0,9).forEach(text=>{const item=document.createElement('div');item.className='log-item';item.textContent=text;box.appendChild(item);});
+}
+function renderChat(){
+ const box=$('chat-list');box.replaceChildren();
+ if(!game||!game.chat.length){const empty=document.createElement('div');empty.className='small-muted';empty.textContent='Khi vào phòng, bạn có thể chat tại đây.';box.appendChild(empty);return;}
+ game.chat.slice(-18).forEach(msg=>{const row=document.createElement('div');row.className='chat-message';const who=document.createElement('strong');who.textContent=(msg.name||SEAT_SHORT[msg.seat]||'Người chơi')+': ';row.append(who,document.createTextNode(msg.text));box.appendChild(row);});
+ box.scrollTop=box.scrollHeight;
+}
+function render(){
+ renderBoard();renderPlayers();renderLog();renderChat();
+ $('move-count').textContent=(game?game.moves:0)+' nước';
+ const pill=$('turn-pill'),statusEl=$('game-status'),win=$('win-box');
+ win.classList.add('hidden');
+ if(!game){pill.textContent='ĐANG CHỜ PHÒNG';statusEl.textContent='Tạo phòng để bắt đầu.';return;}
+ if(!game.started){pill.textContent='ĐỢI 3 NGƯỜI';statusEl.textContent=isHost?'Phòng đã mở. Đang đợi thêm 2 người chơi.':'Đang chờ host bắt đầu ván khi đủ 3 người.';}
+ else if(game.over){pill.textContent='KẾT THÚC';statusEl.textContent=game.winner?'Người thắng: '+playerName(game.winner):'Ván đấu hòa.';win.textContent=game.winner?'🏆 '+playerName(game.winner)+' chiến thắng!':'Ván đấu hòa.';win.classList.remove('hidden');}
+ else{
+  pill.textContent='LƯỢT '+SEAT_SHORT[game.turn].toUpperCase();
+  const checked=isInCheck(game.board,game.turn);
+  statusEl.textContent='Đến lượt '+playerName(game.turn)+(checked?' · VUA ĐANG BỊ CHIẾU':'')+'. '+(mySeat===game.turn?'Bạn đang đi.':'Đang chờ nước đi.');
+ }
+ $('new-game').classList.toggle('hidden',!isHost||!game||!game.started||!game.over);
+ if(mySeat&&game&&game.players[mySeat]&&!isHost&&game.players[mySeat].online)$('room-code').textContent=roomCode;
+}
+$('create-room').addEventListener('click',createRoom);
+$('join-room').addEventListener('click',joinRoom);
+$('copy-invite').addEventListener('click',copyInvite);
+$('new-game').addEventListener('click',newGame);
+$('chat-form').addEventListener('submit',event=>{
+ event.preventDefault();const text=$('chat-input').value.trim();if(!text||!game||!mySeat)return;
+ if(isHost)addChat('north',text);
+ else if(hostConnection&&hostConnection.open)sendConnection(hostConnection,{type:'chat',text:text});
+ else{status('Bạn chưa kết nối vào phòng.',true);return;}
+ $('chat-input').value='';
+});
+const requestedRoom=new URLSearchParams(location.search).get('room');
+if(requestedRoom){$('room-code-input').value=requestedRoom;$('join-room').focus();}
+render();
+})();
+</script>
 </body>
 </html>
