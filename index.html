@@ -35,7 +35,7 @@
       <section class="panel">
         <div class="panel-head"><div><div class="eyebrow">Kết nối Internet</div><h3>Phòng chơi P2P</h3></div><span class="tag">3 NGƯỜI</span></div>
         <div class="section-body">
-          <label class="field-label" for="player-name">Tên hiển thị</label><input id="player-name" class="input" maxlength="20" placeholder="Tên của bạn" value="Người chơi">
+          <label class="field-label" for="player-name">Tên hiển thị</label><input id="player-name" class="input" maxlength="20" placeholder="Tên của bạn" value="">
           <div class="btnrow" style="margin-top:10px"><button id="create-room" class="btn primary" style="flex:1">＋ Tạo phòng (Host)</button><button id="new-game" class="btn secondary hidden">Ván mới</button></div>
           <div style="height:1px;background:#303b33;margin:15px 0"></div>
           <label class="field-label" for="room-code-input">Mã phòng / Peer ID của host</label>
@@ -90,7 +90,8 @@ let peerLibraryPromise=null;
 
 const $=id=>document.getElementById(id);
 const boardEl=$('board');
-function safeName(value){const name=String(value||'').trim().replace(/[<>]/g,'').slice(0,20);return name||'Người chơi';}
+const defaultPlayerName='Người chơi '+Math.floor(100+Math.random()*900);
+function safeName(value){const name=String(value||'').trim().replace(/[<>]/g,'').slice(0,20);return name||defaultPlayerName;}
 function status(message,error){const box=$('network-status');box.classList.toggle('error',!!error);box.replaceChildren();const strong=document.createElement('strong');strong.textContent=error?'Kết nối gặp lỗi':'Trạng thái kết nối';const span=document.createElement('span');span.textContent=message;box.append(strong,span);}
 function playerName(seat){return game&&game.players[seat]?game.players[seat].name:SEAT_SHORT[seat];}
 function isActiveSquare(r,c){return !((r<2||r>9)&&(c<2||c>9));}
